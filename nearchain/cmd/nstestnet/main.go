@@ -9,8 +9,9 @@
 //	go run ./nearchain/cmd/nstestnet e2e            live flows: tick, session key, LogX deposit/stake/withdraw
 //	go run ./nearchain/cmd/nstestnet flows <step>   user flows through the local stack (see flows.go)
 //
-// Keys are generated locally and written to ~/.near-credentials/testnet/<account>.json (the
-// near-cli format, mode 0600). Private keys are never printed.
+// Keys are generated locally and written to local/near-credentials/testnet/<account>.json,
+// relative to the repo root (override with NEAR_CREDENTIALS_DIR), in the near-cli format,
+// mode 0600. Private keys are never printed.
 package main
 
 import (
@@ -52,8 +53,11 @@ type creds struct {
 }
 
 func credsPath(account string) string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".near-credentials", "testnet", account+".json")
+	dir := os.Getenv("NEAR_CREDENTIALS_DIR")
+	if dir == "" {
+		dir = "local/near-credentials/testnet"
+	}
+	return filepath.Join(dir, account+".json")
 }
 
 func loadCreds(account string) (*creds, error) {

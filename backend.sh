@@ -8,7 +8,7 @@
 #   build  - rebuild every service binary from source into bin/.
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-d="$HOME/.near-stocks-testnet"
+d="$repo/local"
 cmd="${1:-up}"
 
 # order matters: oracle/balance-server/engine before api-server; api-server before the rest

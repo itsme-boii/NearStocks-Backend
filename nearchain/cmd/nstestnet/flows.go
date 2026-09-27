@@ -3,7 +3,7 @@ package main
 // flows drives the user flows through the running local stack (api-server, engine, balance-server,
 // cron-server batcher, indexer) against near-stocks.testnet, the way the frontend does, and checks
 // after each step that the contract and the backend ledgers agree (Development.md §15, gate G4).
-// Run it with ~/.near-stocks-testnet/common.env loaded (it reads Redis like the reconciler does).
+// Run it with local/common.env loaded (it reads Redis like the reconciler does).
 //
 //	nstestnet flows login                  both test users: 409 before registration, register, sign in
 //	nstestnet flows deposit <user> <usdc>  ft_transfer_call USDC into near-stocks, wait for the indexer
@@ -62,8 +62,11 @@ type session struct {
 }
 
 func sessionPath(account string) string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".near-stocks-testnet", "sessions", account+".json")
+	dir := os.Getenv("NS_SESSIONS_DIR")
+	if dir == "" {
+		dir = "local/sessions"
+	}
+	return filepath.Join(dir, account+".json")
 }
 
 func loadSession(account string) (*session, error) {
