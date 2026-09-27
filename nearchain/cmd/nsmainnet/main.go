@@ -25,8 +25,8 @@
 //	    own key signs this) and near_stocks_core.wasm to already be built.
 //
 //	go run ./nearchain/cmd/nsmainnet setup
-//	    Owner (saduni1186.near) configures USDC as collateral, lists ETH/BTC/SOL at live Hyperliquid
-//	    prices, and finishes migration. Requires saduni1186.near's private key.
+//	    Owner (drytea2911.near) configures USDC as collateral, lists ETH/BTC/SOL at live Hyperliquid
+//	    prices, and finishes migration. Requires drytea2911.near's private key.
 //
 //	go run ./nearchain/cmd/nsmainnet list-stocks
 //	    Owner lists TSLA, NVDA, AAPL, GOOGL — the 4 stocks with a confirmed, tested, live price

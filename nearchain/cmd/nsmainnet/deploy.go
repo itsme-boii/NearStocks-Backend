@@ -13,20 +13,27 @@ import (
 	"github/eugenix-io/logx-inf-backend/nearchain"
 )
 
-// Mainnet layout. Owner and treasury are the SAME account (saduni1186.near) per the user's
-// decision — there is no separate DAO account yet, so `owner` in the contract is a plain keypair,
-// not a multisig. Stand up a real multisig and transfer ownership before this holds meaningful
-// funds (see [[pre-mainnet-contract-review]] — this is flagged there as the top pre-mainnet gap).
+// Mainnet layout. Owner and treasury are the SAME account — a NEAR implicit account (a Nightly
+// wallet, not a named .near account) holding a real 6.78 NEAR balance as of 2026-09-27, replacing
+// the earlier drytea2911.near/saduni1186.near placeholders. There is no separate DAO account yet,
+// so `owner` in the contract is a plain keypair, not a multisig. Stand up a real multisig and
+// transfer ownership before this holds meaningful funds (see [[pre-mainnet-contract-review]] — this
+// is flagged there as the top pre-mainnet gap).
 //
 // VERIFY INDEPENDENTLY before spending real NEAR: usdcMainnet (nearchain.USDCMainnet) is Circle's
 // native USDC contract id on NEAR mainnet as already used elsewhere in this codebase
 // (nearFunding.service.go's default, nearchain's live tests) — not something newly asserted here,
 // but still a real-money mainnet address worth your own confirmation.
 const (
-	coreAccount     = "near-stocks.near"
-	ownerAccount    = "saduni1186.near" // owner AND treasury
-	guardianAccount = "clearpant525.near"
-	seqAccount      = "grandyard4837.near"
+	coreAccount  = "near-stocks.near"
+	ownerAccount = "8f4015265b9b67afca2ebbfd81c82e10b2a75e68c28916943f724b2068e30d15" // owner AND treasury (implicit account, Nightly wallet, 6.78 NEAR)
+	// guardian and sequencer are the SAME implicit account (user's choice — note this means a
+	// compromised sequencer key is also a compromised guardian key, reducing guardian's value as an
+	// independent circuit breaker). Does NOT exist on-chain yet as of 2026-09-27 (0 access keys,
+	// UNKNOWN_ACCOUNT) — a NEAR implicit account only comes into existence on its first received
+	// transfer, so `fund` must run against it before it can sign anything as sequencer.
+	guardianAccount = "9bce340bdc623a5fca6d12ca6ab3f49a42e2a1eac97d648339dd0209bff26946"
+	seqAccount      = "9bce340bdc623a5fca6d12ca6ab3f49a42e2a1eac97d648339dd0209bff26946"
 	chainIdMainnet  = 397
 	brokerId        = 2 // same product-line id as testnet (services/api-server default NEAR_BROKER_ID=2) — not network-specific
 	// system subaccounts: network-independent (broker_id=1-prefixed by convention inside the hex
@@ -194,6 +201,21 @@ func setup(ctx context.Context, rpc *nearchain.Client) error {
 	x := func(num, den int64) string {
 		return new(big.Int).Div(new(big.Int).Mul(big.NewInt(num), e18), big.NewInt(den)).String()
 	}
+
+	// idempotent: check current state first so re-running after a partial failure never re-sends
+	// finish_migration (a repeat call panics and aborts the whole containing transaction, including
+	// any other actions batched alongside it — that's exactly what happened the first time this ran).
+	cfgRaw, err := rpc.CallView(ctx, coreAccount, "get_config", map[string]any{})
+	if err != nil {
+		return fmt.Errorf("get_config: %w", err)
+	}
+	var cfg struct {
+		Migrated bool `json:"migrated"`
+	}
+	if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+		return fmt.Errorf("get_config: %w", err)
+	}
+
 	var symbols []string
 	for _, p := range mainnetPerps {
 		symbols = append(symbols, p.symbol)
@@ -215,18 +237,33 @@ func setup(ctx context.Context, rpc *nearchain.Client) error {
 		callFn("set_product_order", map[string]any{"spot_order": []int{4}, "collateral_order": []int{4}}, 20, nil),
 		callFn("set_product_accounts", map[string]any{"options_x": optionsX, "options_fees": optionsFees, "pre_market_x": preX,
 			"pre_market_fees": preFees, "synthetic_x": synX, "synthetic_fees": synFees}, 20, nil),
-		callFn("finish_migration", map[string]any{"n_submissions": 0}, 20, nil),
 	)
+	if !cfg.Migrated {
+		actions = append(actions, callFn("finish_migration", map[string]any{"n_submissions": 0}, 20, nil))
+	} else {
+		fmt.Println("migration already finished, skipping finish_migration (re-sending product config only)")
+	}
 	if _, err := send(ctx, rpc, ownerAccount, coreAccount, actions...); err != nil {
 		return err
 	}
-	fmt.Printf("configured %s: USDC collateral, perps %v at Hyperliquid prices, product accounts, migration finished (stocks/ETFs deferred — no feed chosen yet)\n", coreAccount, symbols)
-	// the contract must hold USDC storage to be able to receive it
-	storage := new(big.Int).Mul(big.NewInt(125), new(big.Int).Exp(big.NewInt(10), big.NewInt(19), nil)) // 0.00125 NEAR
-	if _, err := send(ctx, rpc, ownerAccount, nearchain.USDCMainnet, callFn("storage_deposit", map[string]any{"account_id": coreAccount, "registration_only": true}, 30, storage)); err != nil {
-		return fmt.Errorf("storage_deposit on USDC: %w", err)
+	fmt.Printf("configured %s: USDC collateral, perps %v at Hyperliquid prices, product accounts\n", coreAccount, symbols)
+
+	// the contract must hold USDC storage to be able to receive it — also idempotent, skip if
+	// already registered (a second storage_deposit is harmless but wastes the deposit as a top-up;
+	// checking is free).
+	storageRaw, err := rpc.CallView(ctx, nearchain.USDCMainnet, "storage_balance_of", map[string]any{"account_id": coreAccount})
+	if err != nil {
+		return fmt.Errorf("storage_balance_of: %w", err)
 	}
-	fmt.Printf("registered %s with USDC storage\n", coreAccount)
+	if string(storageRaw) == "null" {
+		storage := new(big.Int).Mul(big.NewInt(125), new(big.Int).Exp(big.NewInt(10), big.NewInt(19), nil)) // 0.00125 NEAR
+		if _, err := send(ctx, rpc, ownerAccount, nearchain.USDCMainnet, callFn("storage_deposit", map[string]any{"account_id": coreAccount, "registration_only": true}, 30, storage)); err != nil {
+			return fmt.Errorf("storage_deposit on USDC: %w", err)
+		}
+		fmt.Printf("registered %s with USDC storage\n", coreAccount)
+	} else {
+		fmt.Printf("%s already registered with USDC storage\n", coreAccount)
+	}
 	return nil
 }
 

@@ -1,0 +1,82 @@
+# GCP Cloud Build → Cloud Run, for any one near-stocks service. One shared template, one Cloud
+# Build TRIGGER per service supplying different substitutions — same shape as this repo's existing
+# buildspec.yml (one buildspec, one CodeBuild project per service on AWS).
+#
+# Required substitutions (set per-trigger, e.g. in the trigger's "Substitution variables"):
+#   _SERVICE      Cloud Run service name, e.g. api-server, engine, cron-server, oracle
+#   _CONTEXT      Docker build context. Go services build from the repo root (their Dockerfiles
+#                 COPY the whole monorepo to resolve go.work); services/oracle (Node) builds from
+#                 its own directory. Set to "." for every Go service, "services/oracle" for oracle.
+#   _DOCKERFILE   Path to the Dockerfile, e.g. services/api-server/Dockerfile
+#   _REGION       e.g. us-central1
+#   _REPO         Artifact Registry repo name, e.g. near-stocks
+#   _ALWAYS_ON    "true" for cron-server, engine, amm, liquidation, indexer-server, oracle
+#                 (background loops — need CPU always allocated + min-instances=1, see the mainnet
+#                 GCP deployment conversation for why). "false" for api-server, balance-server.
+#   _VPC_CONNECTOR  Serverless VPC Access connector name (needed by every service that reaches
+#                   Memorystore Redis or Cloud SQL over the private network — i.e. all of them).
+#   _CLOUDSQL_INSTANCE  PROJECT:REGION:INSTANCE for Cloud SQL, or empty for services with no DB.
+#   _ENV_VARS_FILE  Path to that service's non-secret env vars YAML, e.g. deploy/gcp/api-server.env.yaml
+#   _SECRETS        Cloud Run --set-secrets value, e.g.
+#                   NEAR_SEQUENCER_PRIVATE_KEY=near-sequencer-key:latest (empty if none needed)
+#
+# Non-secret config lives in tracked deploy/gcp/*.env.yaml files (see near-mainnet.env.example for
+# the values). Secrets NEVER go in this repo — see deploy/gcp/README.md for exactly how to create
+# them in Secret Manager and wire them in via _SECRETS.
+
+steps:
+  - id: build
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-f'
+      - '${_DOCKERFILE}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+      - '${_CONTEXT}'
+
+  - id: push
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+
+  - id: deploy
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        args=(
+          run deploy "${_SERVICE}"
+          --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}"
+          --region="${_REGION}"
+          --platform=managed
+          --vpc-connector="${_VPC_CONNECTOR}"
+          --vpc-egress=private-ranges-only
+          --env-vars-file="${_ENV_VARS_FILE}"
+        )
+        if [ -n "${_CLOUDSQL_INSTANCE}" ]; then
+          args+=(--add-cloudsql-instances="${_CLOUDSQL_INSTANCE}")
+        fi
+        if [ -n "${_SECRETS}" ]; then
+          args+=(--set-secrets="${_SECRETS}")
+        fi
+        if [ "${_ALWAYS_ON}" = "true" ]; then
+          args+=(--no-cpu-throttling --min-instances=1)
+        fi
+        gcloud "${args[@]}"
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: near-stocks
+  _ALWAYS_ON: "false"
+  _CLOUDSQL_INSTANCE: ""
+  _SECRETS: ""
+
+options:
+  substitutionOption: ALLOW_LOOSE
