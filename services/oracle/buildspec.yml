@@ -1,0 +1,51 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR....
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image..
+      - docker build --platform linux/amd64 -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker image to ECR..
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definition files for each container
+
+      - printf '[{"name":"%s","imageUri":"%s"}]' $READER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-reader.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $INTERNAL_READER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-internal-reader.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $WRITER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-writer.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $MAINNET_V1_READER $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-mainnetv1-reader.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $MAINNET_V1_INTERNAL_READER $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-mainnetv1-internal-reader.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $MAINNET_V1_WRITER $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-mainnetv1-writer.json
+
+      - echo Printing imagedefinitions-reader.json
+      - cat imagedefinitions-reader.json
+      - echo Printing imagedefinitions-internal-reader.json
+      - cat imagedefinitions-internal-reader.json
+      - echo Printing imagedefinitions-writer.json
+      - cat imagedefinitions-writer.json
+
+      - echo Printing imagedefinitions-mainnetv1-reader.json
+      - cat imagedefinitions-mainnetv1-reader.json
+      - echo Printing imagedefinitions-mainnetv1-internal-reader.json
+      - cat imagedefinitions-mainnetv1-internal-reader.json
+      - echo Printing imagedefinitions-mainnetv1-writer.json
+      - cat imagedefinitions-mainnetv1-writer.json
+
+artifacts:
+  files:
+    - imagedefinitions-reader.json
+    - imagedefinitions-internal-reader.json
+    - imagedefinitions-writer.json
+    - imagedefinitions-mainnetv1-reader.json
+    - imagedefinitions-mainnetv1-internal-reader.json
+    - imagedefinitions-mainnetv1-writer.json

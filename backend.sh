@@ -2,7 +2,7 @@
 # One-command control for the near-stocks local backend stack. Run this from
 # anywhere inside this repo, e.g. `./backend.sh up`.
 # Usage: backend.sh [up|down|status|build]   (default: up)
-#   up     - start docker (postgres+redis), then all 8 services, in dependency order. Safe to re-run.
+#   up     - start docker (postgres+redis), then all services, in dependency order. Safe to re-run.
 #   down   - stop all services and docker containers.
 #   status - show what's running.
 #   build  - rebuild every service binary from source into bin/.
@@ -12,7 +12,11 @@ d="$repo/local"
 cmd="${1:-up}"
 
 # order matters: oracle/balance-server/engine before api-server; api-server before the rest
-SERVICES=(nsoracle balance-server engine api-server cron-server indexer-server liquidation amm)
+# "oracle" is the real production price aggregator (services/oracle, NestJS — vendored from the
+# standalone 100exhange-oracle repo); "nsoracle" is the Yahoo Finance test stand-in still used as
+# ORACLE_SERVER_URL's default in local/common.env. Both run side by side — nothing points at
+# "oracle" by default yet, point ORACLE_SERVER_URL at http://localhost:8097 to use it instead.
+SERVICES=(nsoracle oracle balance-server engine api-server cron-server indexer-server liquidation amm)
 
 BUILD_PATHS=(
   "nsoracle:./nearchain/cmd/nsoracle"
@@ -25,6 +29,16 @@ BUILD_PATHS=(
   "amm:./services/amm/cmd"
   "nstestnet:./nearchain/cmd/nstestnet"
 )
+
+# oracle (NestJS) isn't a compiled $d/bin/<svc> binary like the Go services, so it needs its own
+# process-match pattern for pgrep/pkill.
+match_pattern() {
+  if [[ "$1" == "oracle" ]]; then
+    echo "services/oracle/dist/main.js"
+  else
+    echo "$d/bin/$1"
+  fi
+}
 
 start_docker() {
   if docker inspect ns-postgres >/dev/null 2>&1; then
@@ -55,12 +69,14 @@ case "$cmd" in
       echo "building $svc"
       go build -o "$d/bin/$svc" "$path"
     done
+    echo "building oracle"
+    (cd "$repo/services/oracle" && npm install --no-audit --no-fund >/dev/null && npm run build)
     echo "build complete"
     ;;
   up)
     start_docker
     for svc in "${SERVICES[@]}"; do
-      if pgrep -f "$d/bin/$svc" >/dev/null 2>&1; then
+      if pgrep -f "$(match_pattern "$svc")" >/dev/null 2>&1; then
         echo "$svc: already running"
       else
         "$d/run.sh" start "$svc"
@@ -79,7 +95,7 @@ case "$cmd" in
   status)
     docker ps -a --filter name=ns-postgres --filter name=ns-redis --format '{{.Names}}: {{.Status}}'
     for svc in "${SERVICES[@]}"; do
-      if pgrep -f "$d/bin/$svc" >/dev/null 2>&1; then
+      if pgrep -f "$(match_pattern "$svc")" >/dev/null 2>&1; then
         echo "$svc: running"
       else
         echo "$svc: stopped"

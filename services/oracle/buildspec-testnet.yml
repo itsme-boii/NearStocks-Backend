@@ -1,0 +1,34 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR....
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image..
+      - docker build --platform linux/amd64 -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker image to ECR..
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Writing image definition files for each container
+
+      - printf '[{"name":"%s","imageUri":"%s"}]' $TESTNET_READER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-testnet-reader.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' $TESTNET_WRITER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions-testnet-writer.json
+
+      - echo Printing imagedefinitions-testnet-reader.json
+      - cat imagedefinitions-testnet-reader.json
+      - echo Printing imagedefinitions-testnet-writer.json
+      - cat imagedefinitions-testnet-writer.json
+
+artifacts:
+  files:
+    - imagedefinitions-testnet-reader.json
+    - imagedefinitions-testnet-writer.json
