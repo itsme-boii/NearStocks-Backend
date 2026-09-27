@@ -1,0 +1,12 @@
+[package]
+name = "mock-ft"
+version = "0.1.0"
+edition = "2021"
+description = "Test-only NEP-141 token for the near-stocks sandbox suite (can be told to fail transfers)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }

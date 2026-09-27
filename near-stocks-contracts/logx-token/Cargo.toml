@@ -1,0 +1,15 @@
+[package]
+name = "logx-token"
+version = "0.1.0"
+edition = "2021"
+description = "LogX NEP-141 token on NEAR (Development.md §5.1), built on near-contract-standards"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+near-contract-standards = "=5.29.1"
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

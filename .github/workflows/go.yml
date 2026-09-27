@@ -1,0 +1,44 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22.3"
+      - name: Build check
+        run: |
+          echo "Cleaning Go build cache..."
+          go clean -cache
+
+          echo "Building Go projects in all main.go directories..."
+
+          # Find all files named main.go and get their directories
+          for dir in $(find . -name "main.go" -exec dirname {} \; | sort -u); do
+              echo "Building in $dir"
+              if ! go build "$dir"; then
+                  echo "Build failed in $dir. Aborting push."
+                  exit 1
+              fi
+          done
+          rm -f ./cmd
+          echo "All builds succeeded."
+          exit 0
+      - name: Test
+        run: |
+          failed=0
+          for dir in $(find . -type d -name "tests"); do
+            go test -v "$dir" || failed=1
+          done
+          exit $failed

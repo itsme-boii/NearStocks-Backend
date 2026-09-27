@@ -1,0 +1,57 @@
+{
+  "order": [
+    {
+      "domain": {
+        "name": "near-stocks",
+        "version": "1",
+        "chainId": 397,
+        "contractAccount": "near-stocks.near",
+        "verifyingContract": "0x74e52E94cDC6bd5F62865d40361aAF6C7bEA561A",
+        "domainSeparator": "0xc1fd9387f5482b02c50f902cf8fe03cb1a793e8b3313b35c9de548b58ca30cfd"
+      },
+      "message": {
+        "amount": "-1500000000000000000",
+        "chainId": "397",
+        "expiration": "1790000000000",
+        "isReduce": "false",
+        "priceX18": "65000000000000000000000",
+        "productId": "1",
+        "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+        "subAccountId": "0x000000000001fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000"
+      },
+      "typeHash": "0xf11e57d2b5d1a8a57c8ce4a975cefaaf20c6fc66b728b1993e9b3a5cd9ec8eec",
+      "structHash": "0x23a01b3f736fc552837423f91f1d641779a7aff467a785d52168399574bd7d16",
+      "digest": "0x0143b76f8e96ef4aabc50dbb9382a9c4b34367faa670dca3a10bb0e55f375cdc",
+      "signer": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+      "signature": "0x72fc508c7e3d722f59065e48ed3cbba6704b7389fea53a81afcfec3af57cb1980b6d7c3ba8798407812074fc9f1f8191ec51d7e6bc0f03f5b0f90fdb55f1b7c01b",
+      "signerPrivateKeyTestOnly": "0x1d9a62df4a2b4ba7121ea8c5f29117c13e49e4d0dacd3b6baf5cb4844c6629b0"
+    },
+    {
+      "domain": {
+        "name": "near-stocks",
+        "version": "1",
+        "chainId": 398,
+        "contractAccount": "near-stocks.testnet",
+        "verifyingContract": "0x49F8dC449a53481d02E1EF187dCFaCf371B17b7F",
+        "domainSeparator": "0x769661ff01d69a0905797696da9d15f84c23966934047da6f192f0cba8f57274"
+      },
+      "message": {
+        "amount": "250000000000000000",
+        "chainId": "398",
+        "expiration": "1790000000000",
+        "isReduce": "true",
+        "priceX18": "65000000000000000000000",
+        "productId": "1",
+        "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+        "subAccountId": "0x000000000001fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000"
+      },
+      "typeHash": "0xf11e57d2b5d1a8a57c8ce4a975cefaaf20c6fc66b728b1993e9b3a5cd9ec8eec",
+      "structHash": "0xd1c78e4fda799c242eaec11690bccfcd9a6a0beac77ecae3e24037a276f7b5ac",
+      "digest": "0x973650c422084e95c53ec99e57c2d3484d0e64fb5c6c425b83e3f8258476d3aa",
+      "signer": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+      "signature": "0xe784588a588200314814995d16ab74a6d41b91ebeadb86f8d5b7ceb8591f944200768f0dae61e2d3bcd5e4659165df0edfa66620a9e025ad0d4a30adad0bd23b1c",
+      "signerPrivateKeyTestOnly": "0x1d9a62df4a2b4ba7121ea8c5f29117c13e49e4d0dacd3b6baf5cb4844c6629b0"
+    }
+  ],
+  "spec": "Development.md §5.5; Order type from C11 (signing.ts / offChainExchange ABI)"
+}

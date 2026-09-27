@@ -1,0 +1,33 @@
+# !/bin/sh
+
+echo "Cleaning Go build cache..."
+go clean -cache
+
+echo "Building Go projects in all main.go directories..."
+
+# Find all files named main.go and get their directories
+for dir in $(find . -name "main.go" -exec dirname {} \; | sort -u); do
+    echo "Building in $dir"
+    if ! go build "$dir"; then
+        echo "Build failed in $dir. Aborting push."
+        exit 1
+    fi
+done
+rm -f ./cmd
+echo "All builds succeeded."
+
+echo "Cleaning Go test cache..."
+go clean -testcache
+
+# Run all Go tests
+echo "Running Go tests..."
+
+for dir in $(find . -type d -name "tests"); do
+    if ! go test -v "$dir"; then
+        echo "Tests failed in $dir. Aborting push."
+        exit 1
+    fi
+done
+
+echo "All tests passed. Proceeding with push."
+exit 0

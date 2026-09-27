@@ -1,0 +1,169 @@
+name: Deploy AMM to ECR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/amm/**'
+      - 'libs/**'
+      - 'xclient/**'
+      - 'contract/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - staging
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: 100xdex-prod-image-repository
+  SERVICE_NAME: amm
+  DOCKERFILE_PATH: services/amm/Dockerfile
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::247188370568:role/arcane-github-oidc-role
+          role-session-name: github-actions-ecr-push
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/} | sed 's/[^a-zA-Z0-9]/-/g')
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          echo "sha_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "branch_tag=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "timestamp_tag=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "build_tag=${{ env.SERVICE_NAME }}-${SHORT_SHA}-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "service_latest=${{ env.SERVICE_NAME }}-latest" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tags.outputs.service_latest }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tags.outputs.build_tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate image definition file
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tags.outputs.build_tag }}"
+          echo '[{"name":"${{ env.SERVICE_NAME }}","imageUri":"'$IMAGE_URI'"}]' > imagedefinitions.json
+          echo "Generated image definition:"
+          cat imagedefinitions.json
+
+      - name: Upload image definition as artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: imagedefinitions-${{ env.SERVICE_NAME }}
+          path: imagedefinitions.json
+          retention-days: 5
+
+      - name: Update ECS service with new image
+        if: github.event_name != 'pull_request'
+        env:
+          ECS_CLUSTER: 100xdex-production-ecs-cluster
+          ECS_SERVICE: hundred-amm
+        run: |
+          echo "Updating ECS service: ${{ env.ECS_SERVICE }}"
+
+          # Get the current task definition
+          TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          echo "Current task definition: $TASK_DEFINITION"
+
+          # Get the full task definition JSON
+          aws ecs describe-task-definition \
+            --task-definition $TASK_DEFINITION \
+            --query 'taskDefinition' > task-definition.json
+
+          # Update the image in the task definition
+          NEW_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tags.outputs.service_latest }}"
+          echo "New image: $NEW_IMAGE"
+
+          # Update the image for the container
+          cat task-definition.json | jq \
+            --arg IMAGE "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE' \
+            > updated-task-definition.json
+
+          # Remove fields that can't be included in register-task-definition
+          cat updated-task-definition.json | jq \
+            'del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)' \
+            > final-task-definition.json
+
+          # Register the new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://final-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "New task definition registered: $NEW_TASK_DEF"
+
+          # Update the ECS service with the new task definition
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition $NEW_TASK_DEF \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+
+          echo "ECS service update initiated with force new deployment"
+
+      - name: Print deployment summary
+        if: github.event_name != 'pull_request'
+        env:
+          ECS_CLUSTER: 100xdex-production-ecs-cluster
+          ECS_SERVICE: hundred-amm
+        run: |
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo "Service: ${{ env.SERVICE_NAME }}"
+          echo "ECS Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "ECS Service: ${{ env.ECS_SERVICE }}"
+          echo "Registry: ${{ steps.login-ecr.outputs.registry }}"
+          echo "Repository: ${{ env.ECR_REPOSITORY }}"
+          echo "Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tags.outputs.service_latest }}"
+          echo "=========================================="

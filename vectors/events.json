@@ -1,0 +1,30 @@
+{
+  "spec": "real contract logs (core/tests/events_vectors.rs); parsed by services/indexer-server/nearindexer",
+  "contract": "near-stocks.near",
+  "subaccount": "0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000001",
+  "feeSubaccount": "0x0000000000000000000000000000000000000000000000000007000000000001",
+  "events": {
+    "deposit": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"deposit\",\"data\":[{\"subaccount\":\"0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000001\",\"account_id\":\"alice.near\",\"product_id\":4,\"amount_x18\":\"250000000000000000000\",\"sender_id\":\"alice.near\",\"token\":\"usdc.near\",\"amount\":\"250000000\",\"source\":\"direct\"}]}"
+    ],
+    "withdraw_pending": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"withdraw_pending\",\"data\":[{\"subaccount\":\"0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000001\",\"product_id\":4,\"amount\":\"100250000000000000000\",\"fee\":\"500000000000000000\",\"payout\":\"99750000\",\"receiver\":\"alice.near\",\"tx_idx\":0}]}",
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"batch\",\"data\":[{\"start_idx\":0,\"count\":1}]}"
+    ],
+    "withdraw_done": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"withdraw_done\",\"data\":[{\"subaccount\":\"0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000001\",\"product_id\":4,\"amount\":\"100250000000000000000\",\"fee\":\"500000000000000000\",\"payout\":\"99750000\",\"receiver\":\"alice.near\",\"tx_idx\":1}]}"
+    ],
+    "withdraw_failed": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"withdraw_failed\",\"data\":[{\"subaccount\":\"0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000001\",\"product_id\":4,\"amount\":\"10000000000000000000\",\"fee\":\"500000000000000000\",\"payout\":\"9500000\",\"receiver\":\"alice.near\",\"tx_idx\":2}]}"
+    ],
+    "fee_sweep_pending": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"fee_sweep_pending\",\"data\":[{\"product_id\":4,\"amount\":\"200000000000000000\",\"payout\":\"200000\",\"receiver\":\"treasury.near\"}]}"
+    ],
+    "batch": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"batch\",\"data\":[{\"start_idx\":1,\"count\":1}]}"
+    ],
+    "circuit_breaker": [
+      "EVENT_JSON:{\"standard\":\"near-stocks\",\"version\":\"1.0.0\",\"event\":\"circuit_breaker\",\"data\":[{\"product_id\":1,\"halted\":true,\"by\":\"guardian.near\"}]}"
+    ]
+  }
+}

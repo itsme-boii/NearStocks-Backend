@@ -1,0 +1,10 @@
+.env
+.DS_Store
+/tmp
+/contract/abi/
+/cmd/cmd
+.vscode
+queries.txt
+/nstestnet
+/nsoracle
+/genvectors

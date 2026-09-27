@@ -1,0 +1,9 @@
+# !/bash/sh
+
+#Example command to generate Go bindings for Endpoint contract
+# abigen --abi contract/abis/Endpoint.abi --pkg gen --type Endpoint --out contract/gen/endpoint.gen.go 
+
+abigen --abi contract/abis/HypErc.abi --pkg gen --type HypErc --out contract/gen/hyperc.gen.go 
+
+#Alternatively if abigen path is not defined, once can use the following command as well
+# $(go env GOPATH)/bin/abigen --abi contract/abis/Endpoint.abi --pkg gen --type Endpoint --out contract/gen/endpoint.gen.go 

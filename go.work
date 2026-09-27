@@ -1,0 +1,20 @@
+go 1.24.0
+
+toolchain go1.24.2
+
+use (
+	./contract
+	./libs
+	./nearchain
+	./services/amm
+	./services/api-server
+	./services/balance-server
+	./services/cron-server
+	./services/engine
+	./services/external-campaigns
+	./services/freya
+	./services/indexer-server
+	./services/liquidation
+	./testutils
+	./xclient
+)

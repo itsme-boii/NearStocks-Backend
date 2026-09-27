@@ -1,0 +1,267 @@
+{
+  "chainId": 397,
+  "contractAccount": "near-stocks.near",
+  "requests": [
+    {
+      "amount": "-100000000000000000000",
+      "digest": "0xcf3723b43c85703e8052978dd2426290ce4e0b70d26f6ca13d6ae78ef1e4fdbb",
+      "interval": 5,
+      "nonce": "9",
+      "primaryType": "UserOptionBet",
+      "productId": 3,
+      "signature": "0x8a31bac0d583e5e024ca17ed9498eddffa2b5efd50077fdc05f107a8b002e450196d02d5413e36535616d8d3b77fcbb2a5275fb530756d7bb3824cbb81244b9b1c",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "amount",
+          "type": "int128"
+        },
+        {
+          "name": "interval",
+          "type": "uint32"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "amount": "100000000000000000000",
+      "digest": "0xa6ecc77a2e8aefc0fefd4a82b9efe9a223ddf27b9cd7f3ae8e1ab88f2eb51b0e",
+      "isBuy": true,
+      "nonce": "10",
+      "primaryType": "PlacePreMarketOrderRequest",
+      "productId": 1001,
+      "signature": "0xd73d896ea49f66f426683b2098d73d2c302e919eed89455ebbb60e35db60e0b41c4ba46dc1c2e245489ae8f5d968f3bf5dd86b1b285bdbde84698b3b8c3b24731b",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "amount",
+          "type": "int128"
+        },
+        {
+          "name": "isBuy",
+          "type": "bool"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "amount": "7000000000000000000",
+      "digest": "0x6062bb4bbfb8e793376bd5ffc0ffd2614c5f154abfda0083368b81dcbcf04e68",
+      "isBuy": false,
+      "nonce": "11",
+      "primaryType": "PlaceSyntheticSpotOrderRequest",
+      "productId": 2001,
+      "signature": "0xa48604192cbb613b03006f404288109014c73ffd05f1c7c2957059ef68453fde0bd7e88d79a5cb56919fd5eb9bd1c72f65fb5ede66852c5ef5c03c0c1629b1aa1c",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "amount",
+          "type": "int128"
+        },
+        {
+          "name": "isBuy",
+          "type": "bool"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "amount": "400000000000000000000",
+      "digest": "0x7cd7cd5829ee90bf0cd96f1e4c9f564a45120240f336d9cbffefeb340965bfa9",
+      "nonce": "12",
+      "primaryType": "StakeLogXRequest",
+      "productId": 0,
+      "signature": "0x5710dbfd3fc69561497b4564876f5ade1e3f7c225676afb04ec2892c9fe124844535b10ec1f001dd1b9d65c8ad2238361926591de0c84980a73ec21dbc25d14e1c",
+      "stakerContract": "0x00000000000000000000000000000000000000aa",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "tokenAmount",
+          "type": "int128"
+        },
+        {
+          "name": "stakerContract",
+          "type": "address"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "amount": "100000000000000000000",
+      "digest": "0x5fe1f6c297384ba6655d5f465b983dead54df1721716f8d4240ca4686bad69aa",
+      "nonce": "13",
+      "primaryType": "UnstakeLogXRequest",
+      "productId": 0,
+      "signature": "0x755b0f320518cf1f80ab8c36debd6ff6730add4b41166587253e44b684b4b43a4821e5a7246ec0932770f610ea91f15a476d5c05be2ee2ac3b2e7b47880e388d1c",
+      "stakerContract": "0x00000000000000000000000000000000000000aa",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "amount",
+          "type": "int128"
+        },
+        {
+          "name": "stakerContract",
+          "type": "address"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "digest": "0x46a3ee9bffaad13bccd48b4453cf0b86e2964ed60aedb3a0fe394611eaeccffe",
+      "nonce": "14",
+      "primaryType": "ClaimRewards",
+      "productId": 0,
+      "signature": "0x7665d32f3109a06fae12bac8cf338114bf0f24e48c48ad859711d6e045041c2d1dca34e4470485360dac247f9bea4786ed71d28960fa240765f084c298d3fe011c",
+      "stakerContract": "0x00000000000000000000000000000000000000aa",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "stakerContract",
+          "type": "address"
+        },
+        {
+          "name": "productId",
+          "type": "uint32"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    },
+    {
+      "amount": "1000000000000000000000",
+      "digest": "0x72a90c755f558fc1d5cc5b070a9d79c32316e27df6063427d29ac6bbbd92f818",
+      "nonce": "15",
+      "primaryType": "ClaimLogX",
+      "signature": "0x4df06fe69d5d740988c733ec4d823c6aa861c3e43db605c3953a227fd952b6611237fda291d231207142d44d338abcaf9fef8e8d089f5465382274328f66ecaf1c",
+      "types": [
+        {
+          "name": "subAccountId",
+          "type": "bytes32"
+        },
+        {
+          "name": "tokenAmount",
+          "type": "int128"
+        },
+        {
+          "name": "sessionKey",
+          "type": "address"
+        },
+        {
+          "name": "nonce",
+          "type": "uint128"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        }
+      ]
+    }
+  ],
+  "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+  "spec": "session-key requests kept on NEAR, near-stocks domain; hashed by go-ethereum apitypes",
+  "subAccountId": "0x000000000002fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000"
+}

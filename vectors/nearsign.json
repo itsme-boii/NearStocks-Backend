@@ -1,0 +1,27 @@
+{
+  "chainId": 397,
+  "contractAccount": "near-stocks.near",
+  "register": {
+    "chainId": 397,
+    "digest": "0x5c4d8b8f8ff152ee0a6ccb86c774adc5e32cae080e43631ee8afda5976b79abf",
+    "expiryTimeStamp": "1790518400000",
+    "nonce": "0",
+    "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+    "signature": "0x7557e982726d6fdd4b79ba8a9865eef33d6958335f391cd96d7ab364384619fa6e9ed55c795bbc5e1d5bddbc92a71295bceb0f451128127709f3bd60595f1eae1b",
+    "subAccountId": "0x000000000001fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000",
+    "userAddress": "0xfB734EC1D441bFAee35EdDb6DDdB0774b8F0ec67"
+  },
+  "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+  "spec": "near-stocks domain; session key signs Register (possession proof) and NearWithdraw (exact receiver)",
+  "withdraw": {
+    "amount": "25500000000000000000",
+    "chainId": 397,
+    "digest": "0xdf99a32c338cd7617f70f8a66b419d02b9d1f6c7e6e4cdb1c875553e6bd56583",
+    "nonce": "3",
+    "productId": 4,
+    "receiver": "alice.near",
+    "sessionKey": "0x4599B3307aFd037958b1f583CC5F44F62dc3E970",
+    "signature": "0xab5dd4605c0bd8296ff1acdbc247af553ac872e7b0610006be0fce1a6942342427edeb4b6a2e394abb597c718b9c7430d2e7c5c47a9a032a8adb14063ee5a0731b",
+    "subAccountId": "0x000000000001fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "message": "{\"action\":\"login\",\"sessionKey\":\"0x5d5A2F2eAc8a2C0dC40b8f0b1d2e8B4E3dFa7d71\",\"expiry\":1790518400000,\"ts\":1790000000000}",
+      "nonce": "0x9c6230254ac733f54ec47298f0a5ddaf93dc9efe6e05fb726dcb6faf10ddece2",
+      "nonceBase64": "nGIwJUrHM/VOxHKY8KXdr5Pcnv5uBftybctvrxDd7OI=",
+      "recipient": "near-stocks.near",
+      "callbackUrl": null,
+      "borshHex": "0x9d010080760000007b22616374696f6e223a226c6f67696e222c2273657373696f6e4b6579223a22307835643541324632654163386132433064433430623866306231643265384234453364466137643731222c22657870697279223a313739303531383430303030302c227473223a313739303030303030303030307d9c6230254ac733f54ec47298f0a5ddaf93dc9efe6e05fb726dcb6faf10ddece2100000006e6561722d73746f636b732e6e65617200",
+      "sha256": "0xb1a78fa676501c223692c8eab3f3203d008bcbb3058fc7b5b8f04f9687e4289c",
+      "signatureBase64": "rZBnhPbsBDtq9NmyjHarjsoBbMW8mOZzS0kzI8icSC79wgqXYtVCRzh5bUTg1Y/iIiONwHhW5qQYhm/14/JhDw=="
+    },
+    {
+      "message": "near-stocks: sign in — ünïcødé ✓",
+      "nonce": "0x2e2837bb779638d0c07ef6a62201ffdd7002d3e183e087f02bf499cce1d9901f",
+      "nonceBase64": "Lig3u3eWONDAfvamIgH/3XAC0+GD4IfwK/SZzOHZkB8=",
+      "recipient": "near-stocks.testnet",
+      "callbackUrl": "https://near-stocks.app/auth/callback",
+      "borshHex": "0x9d010080280000006e6561722d73746f636b733a207369676e20696e20e2809420c3bc6ec3af63c3b864c3a920e29c932e2837bb779638d0c07ef6a62201ffdd7002d3e183e087f02bf499cce1d9901f130000006e6561722d73746f636b732e746573746e6574012500000068747470733a2f2f6e6561722d73746f636b732e6170702f617574682f63616c6c6261636b",
+      "sha256": "0xdeb435aea0e1f62df70e85a2c3f3d12d72c9ef2e06e49c70ea7706c3cea8a10c",
+      "signatureBase64": "6YmXZbM0/kh9OkiXLi0iLFPgtyjQMjv65da+fTBn8XROyEbhw25O4JxehFuu6VqHTV9kZGFOGkMrSvXg1dbODg=="
+    }
+  ],
+  "privateSeedTestOnly": "0x2b8ff2db9db1dfa5102d7c6033a5102852623ee2df6301347e171ec4eb8a1efe",
+  "publicKey": "ed25519:5R47k1wJm3J8ZjTr4DK1z6yXB75kCVq2EmbQcdEYjErb",
+  "spec": "sha256(borsh(u32 2^31+413) || borsh({message,nonce:[u8;32],recipient,callbackUrl:Option\u003cString\u003e})), Ed25519",
+  "tag": 2147484061
+}

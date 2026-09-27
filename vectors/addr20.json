@@ -1,0 +1,63 @@
+{
+  "invalid": [
+    "",
+    "a",
+    "Alice.near",
+    ".near",
+    "alice..near",
+    "alice.",
+    "a b",
+    "alice.near-"
+  ],
+  "spec": "addr20 = keccak256(\"near:\" || account_id)[12..32]; subaccount = brokerId(6B BE) || addr20 || n(6B BE)",
+  "valid": [
+    {
+      "accountId": "alice.near",
+      "addr20": "0xfB734EC1D441bFAee35EdDb6DDdB0774b8F0ec67",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0xfB734EC1D441bFAee35EdDb6DDdB0774b8F0ec67_0",
+      "subaccountBytes32": "0x000000000001fb734ec1d441bfaee35eddb6dddb0774b8f0ec67000000000000"
+    },
+    {
+      "accountId": "near-stocks.near",
+      "addr20": "0x4049d4ed2fdE851EE7AB51e3DB8a09e4AECe5578",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0x4049d4ed2fdE851EE7AB51e3DB8a09e4AECe5578_0",
+      "subaccountBytes32": "0x0000000000014049d4ed2fde851ee7ab51e3db8a09e4aece5578000000000000"
+    },
+    {
+      "accountId": "bob.testnet",
+      "addr20": "0x2b5C3EED70986370c525Aa32eCE58067eB8C469d",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0x2b5C3EED70986370c525Aa32eCE58067eB8C469d_0",
+      "subaccountBytes32": "0x0000000000012b5c3eed70986370c525aa32ece58067eb8c469d000000000000"
+    },
+    {
+      "accountId": "a1_b-c.sub.near",
+      "addr20": "0x4b534DEa64D78433bf21e91dDC5ea8B7f0a5c5A8",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0x4b534DEa64D78433bf21e91dDC5ea8B7f0a5c5A8_0",
+      "subaccountBytes32": "0x0000000000014b534dea64d78433bf21e91ddc5ea8b7f0a5c5a8000000000000"
+    },
+    {
+      "accountId": "98793cd91a3f870fb126f66285808c7e094afcfc4eda8a970f6648cdf0dbd6de",
+      "addr20": "0xa340b1a051dbeB1920caEb038C55266CcB40A532",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0xa340b1a051dbeB1920caEb038C55266CcB40A532_0",
+      "subaccountBytes32": "0x000000000001a340b1a051dbeb1920caeb038c55266ccb40a532000000000000"
+    },
+    {
+      "accountId": "0x5a4a3f0fcd06cd2d3e5f7d18ea4a3c6b2de0ae7c",
+      "addr20": "0xB22FDbdd6A34fB0a67a6dA6Aa7b4f7E657230cFb",
+      "brokerId": 1,
+      "subaccountNumber": 0,
+      "subaccountId": "1_0xB22FDbdd6A34fB0a67a6dA6Aa7b4f7E657230cFb_0",
+      "subaccountBytes32": "0x000000000001b22fdbdd6a34fb0a67a6da6aa7b4f7e657230cfb000000000000"
+    }
+  ]
+}
