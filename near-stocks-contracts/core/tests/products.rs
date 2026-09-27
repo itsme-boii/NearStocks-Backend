@@ -1,16 +1,13 @@
-//! Unit tests for options (24, 25), pre-market (26), synthetic spot (27), LogX staking and claims
-//! (14, 15, 16, 18, 22) and LogX withdrawal (13). Numbers are worked by hand in the comments.
+//! Unit tests for options (24, 25) and pre-market (26) / synthetic spot (27). Numbers are worked by
+//! hand in the comments. This contract carries no LogX token, staking or rewards pool.
 mod common;
 use common::*;
-use near_sdk::json_types::{I128, U128};
-use near_sdk::NearToken;
-use near_stocks_core::eip712::{self, ClaimLogX, ClaimRewards, NearWithdraw, OptionBet, PoolOrder, StakeRequest};
+use near_sdk::json_types::I128;
+use near_stocks_core::eip712::{self, OptionBet, PoolOrder};
 use near_stocks_core::events::hex;
-use near_stocks_core::state::{side, ClaimLimits, SideProduct, LOGX_REWARDS_SUBACCOUNT};
-use near_stocks_core::{tx, SpotConfig};
+use near_stocks_core::state::{side, SideProduct};
+use near_stocks_core::tx;
 
-const LOGX: u32 = 0;
-const STLOGX: u32 = 2;
 const ALT: u32 = 1001; // a pre-market / synthetic product id
 const E: i128 = E18;
 
@@ -25,36 +22,11 @@ fn world() -> (Chain, Key) {
         c.set_side_product(side::OPTIONS, BTC, SideProduct { enabled: true, max_fee: 10, max_payout_pct: 200 });
         c.set_side_product(side::PRE_MARKET, ALT, SideProduct { enabled: true, max_fee: 200, max_payout_pct: 0 });
         c.set_side_product(side::SYNTHETIC_SPOT, ALT, SideProduct { enabled: true, max_fee: 200, max_payout_pct: 0 });
-        c.upsert_spot(
-            LOGX,
-            SpotConfig {
-                token: Some(acc("logx.near")),
-                decimals: 18,
-                weighted: false,
-                withdraw_fee_x18: I128(25 * E),
-                price_x18: I128(0),
-                max_deviation_bps: 0,
-            },
-        );
-        c.upsert_spot(
-            STLOGX,
-            SpotConfig { token: None, decimals: 18, weighted: false, withdraw_fee_x18: I128(0), price_x18: I128(0), max_deviation_bps: 0 },
-        );
-        c.set_claim_limits(ClaimLimits { max_logx_claim_x18: I128(10_000 * E), max_reward_claim_x18: I128(500 * E) });
     });
-    // the DAO funds the LogX rewards pool that claims are paid from
-    fund_rewards(&mut c, 20_000 * E);
     let k = Key::new(1);
     register(&mut c, "alice.near", 0, &k);
     deposit(&mut c, "alice.near", 1_000);
     (c, k)
-}
-
-fn fund_rewards(c: &mut Chain, amount: i128) {
-    let dao = owner();
-    c.call(acc("logx.near"), |c| {
-        let _ = c.ft_on_transfer(dao, U128(amount as u128), r#"{"system":"rewards"}"#.to_string());
-    });
 }
 
 fn nonce(c: &Chain) -> u128 {
@@ -218,82 +190,6 @@ fn pool_guards() {
     });
 }
 
-// ------------------------------------------------------------------ LogX: claims, staking, withdrawal
-
-fn claim_logx(c: &mut Chain, k: &Key, amount: i128) {
-    let cl = ClaimLogX { subaccount: alice(), token_amount: amount, session_key: k.addr, nonce: nonce(c) };
-    let sig = sign_struct(k, eip712::claim_logx_hash(&cl, CHAIN_ID));
-    Batch::new().push(common::env(tx::CLAIM_LOGX, &cl), sig, vec![]).submit(c);
-}
-
-fn stake(c: &mut Chain, k: &Key, is_stake: bool, amount: i128) {
-    let s =
-        StakeRequest { subaccount: alice(), product_id: LOGX, amount, staker_contract: [0u8; 20], session_key: k.addr, nonce: nonce(c) };
-    let ty = if is_stake { eip712::STAKE_TYPE } else { eip712::UNSTAKE_TYPE };
-    let sig = sign_struct(k, eip712::stake_hash(ty, &s, CHAIN_ID));
-    Batch::new().push(common::env(if is_stake { tx::STAKE_LOGX } else { tx::UNSTAKE_LOGX }, &s), sig, vec![]).submit(c);
-}
-
-#[test]
-fn logx_claim_stake_unstake_and_rewards() {
-    let (mut c, k) = world();
-    claim_logx(&mut c, &k, 1_000 * E);
-    assert_eq!(spot(&c, &alice(), LOGX), 1_000 * E);
-    expect_panic("LogX claim outside limits", || claim_logx(&mut c, &k, 10_001 * E));
-    stake(&mut c, &k, true, 400 * E);
-    assert_eq!((spot(&c, &alice(), LOGX), spot(&c, &alice(), STLOGX)), (600 * E, 400 * E));
-    expect_panic("insufficient token balance", || stake(&mut c, &k, true, 601 * E));
-    stake(&mut c, &k, false, 100 * E);
-    assert_eq!((spot(&c, &alice(), LOGX), spot(&c, &alice(), STLOGX)), (700 * E, 300 * E));
-    expect_panic("insufficient token balance", || stake(&mut c, &k, false, 301 * E));
-
-    let claim = |c: &mut Chain, amount: i128| {
-        let r = ClaimRewards { subaccount: alice(), session_key: k.addr, staker_contract: [0u8; 20], product_id: LOGX, nonce: nonce(c) };
-        let sig = sign_struct(&k, eip712::claim_rewards_hash(&r, CHAIN_ID));
-        Batch::new().push(common::env(tx::CLAIM_REWARDS, &tx::ClaimRewardsTx { claim: r, amount_x18: amount }), sig, vec![]).submit(c);
-    };
-    claim(&mut c, 42 * E);
-    assert_eq!(spot(&c, &alice(), LOGX), 742 * E);
-    expect_panic("reward claim outside limits", || claim(&mut c, 501 * E));
-    // claims are paid from the pool: 20,000 - 1,000 (airdrop) - 42 (rewards)
-    assert_eq!(spot(&c, &LOGX_REWARDS_SUBACCOUNT, LOGX), 18_958 * E, "claimed LogX is backed, never minted");
-
-    let tick = |c: &mut Chain, r: i128| {
-        Batch::new().push(common::env(tx::REWARD_RATE_TICK, &tx::RewardRateTick { cumulative_rate_x18: r }), vec![], vec![]).submit(c)
-    };
-    tick(&mut c, 5 * E);
-    assert_eq!(c.view(|c| c.get_reward_rate()).0, 5 * E);
-    expect_panic("cannot decrease", || tick(&mut c, 4 * E));
-}
-
-#[test]
-fn logx_withdraws_its_full_balance_through_the_near_withdrawal() {
-    let (mut c, k) = world();
-    claim_logx(&mut c, &k, 100 * E);
-    let w = |c: &Chain, amount: i128| NearWithdraw {
-        subaccount: alice(),
-        session_key: k.addr,
-        product_id: LOGX,
-        amount: amount as u128,
-        nonce: nonce(c),
-        receiver: "alice.near".into(),
-    };
-    let send = |c: &mut Chain, w: NearWithdraw| {
-        let d = eip712::typed_digest(&domain(), &eip712::near_withdraw_struct_hash(&w, CHAIN_ID));
-        Batch::new().push(common::env(tx::WITHDRAW_LOGX, &w), k.sign(&d), vec![]).submit(c);
-    };
-    let too_much = w(&c, 101 * E);
-    expect_panic("exceeds withdrawable", || send(&mut c, too_much));
-    // LogX is not collateral: the whole balance is withdrawable, minus the 25 LogX fee
-    let all = w(&c, 100 * E);
-    send(&mut c, all);
-    assert_eq!(spot(&c, &alice(), LOGX), 0);
-    assert_eq!(events("withdraw_pending")[0]["payout"], (75 * E).to_string());
-    let receipts = near_sdk::test_utils::get_created_receipts();
-    assert_eq!(receipts[0].receiver_id.as_str(), "logx.near");
-    let _ = (U128(0), NearToken::from_yoctonear(0));
-}
-
 #[test]
 fn listing_mints_the_pool_supply_to_the_house_account() {
     let (mut c, k) = world();
@@ -306,28 +202,4 @@ fn listing_mints_the_pool_supply_to_the_house_account() {
     expect_panic("not a pool product", || c.call(owner(), |c| c.add_pool_supply(side::OPTIONS, BTC, I128(E))));
     expect_panic("product not listed", || c.call(owner(), |c| c.add_pool_supply(side::PRE_MARKET, 999, I128(E))));
     expect_panic("amount must be positive", || c.call(owner(), |c| c.add_pool_supply(side::SYNTHETIC_SPOT, ALT, I128(0))));
-}
-
-#[test]
-fn claims_stop_when_the_rewards_pool_is_empty() {
-    let (mut c, k) = world();
-    claim_logx(&mut c, &k, 10_000 * E);
-    claim_logx(&mut c, &k, 10_000 * E);
-    assert_eq!(spot(&c, &LOGX_REWARDS_SUBACCOUNT, LOGX), 0);
-    expect_panic("LogX rewards pool exhausted", || claim_logx(&mut c, &k, E));
-    assert_eq!(spot(&c, &alice(), LOGX), 20_000 * E, "the refused claim changed nothing");
-    // only the owner funds it, and only with LogX
-    expect_panic("only the owner funds system subaccounts", || {
-        c.call(acc("logx.near"), |c| {
-            let _ = c.ft_on_transfer(acc("mallory.near"), U128(E as u128), r#"{"system":"rewards"}"#.to_string());
-        })
-    });
-    let dao = owner();
-    expect_panic("the rewards pool holds LogX only", || {
-        c.call(acc("usdc.near"), |c| {
-            let _ = c.ft_on_transfer(dao, U128(1_000_000), r#"{"system":"rewards"}"#.to_string());
-        })
-    });
-    fund_rewards(&mut c, 5 * E);
-    claim_logx(&mut c, &k, 5 * E);
 }

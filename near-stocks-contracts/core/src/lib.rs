@@ -1,7 +1,8 @@
 //! near-stocks core settlement contract (Development.md §5, behavior-spec).
 //! Phase 3: endpoint, spot collateral, perps, exchange, clearinghouse, PERPTICK with price guards,
 //! ft_on_transfer deposits, WITHDRAW_COLLATERAL with re-credit, NEP-297 events, admin/pause/upgrade,
-//! and the migrate_state latch. Options, pre-market, synthetic spot, rewards and LogX are Phase 4.
+//! and the migrate_state latch. Options, pre-market and synthetic spot are Phase 4. This deployment
+//! carries no LogX token, staking or rewards pool.
 pub mod eip712;
 pub mod events;
 pub mod fixed;
@@ -150,8 +151,6 @@ pub struct NearStocks {
     options: LookupMap<u64, StoredBet>,
     /// pre-market (kind 1) and synthetic-spot (kind 2) token ledgers, keyed (kind, subaccount, pid)
     pool_balances: LookupMap<(u8, [u8; 32], u32), i128>,
-    claim_limits: ClaimLimits,
-    reward_rate_x18: i128,
     trusted_depositors: Vec<AccountId>,
     /// trusted deposits that arrived while deposits were closed, x18, keyed (account, subaccount number, product)
     held: LookupMap<(AccountId, u64, u32), i128>,
@@ -246,6 +245,55 @@ fn pow10(n: u8) -> i128 {
     10i128.checked_pow(n as u32).unwrap_or_else(|| env::panic_str("decimals out of range"))
 }
 
+/// The contract's on-chain field layout before the 2026-09-27 LogX/staking/rewards removal
+/// (Development.md §16.11) — exists only so `migrate()` can decode already-deployed state. `pub`
+/// so `core/tests` can exercise the migration directly with realistic data; delete both this and
+/// `PreLogxRemovalClaimLimits` once `migrate()` has actually run against the deployed contract.
+#[near(serializers = [borsh])]
+pub struct PreLogxRemovalClaimLimits {
+    pub max_logx_claim_x18: I128,
+    pub max_reward_claim_x18: I128,
+}
+
+#[near(serializers = [borsh])]
+pub struct PreLogxRemoval {
+    pub owner: AccountId,
+    pub guardian: AccountId,
+    pub sequencer: AccountId,
+    pub chain_id: u64,
+    pub broker_id: u64,
+    pub n_submissions: u64,
+    pub paused: u8,
+    pub migrated: bool,
+    pub fee_table: FeeTable,
+    pub amm_subaccount: [u8; 32],
+    pub insurance_subaccount: [u8; 32],
+    pub fee_subaccount: [u8; 32],
+    pub price_max_age_sec: u64,
+    pub max_session_ttl_ms: u64,
+    pub min_new_deposit_x18: i128,
+    pub max_order_ttl_ms: u64,
+    pub spot_order: Vec<u32>,
+    pub collateral_order: Vec<u32>,
+    pub spots: IterableMap<u32, SpotProduct>,
+    pub perps: IterableMap<u32, PerpProduct>,
+    pub token_to_spot: LookupMap<AccountId, u32>,
+    pub subaccounts: LookupMap<[u8; 32], Subaccount>,
+    pub owners: LookupMap<[u8; 32], AccountId>,
+    pub session_keys: LookupMap<([u8; 32], [u8; 20]), u64>,
+    pub nonces: LookupMap<[u8; 32], u64>,
+    pub filled: LookupMap<[u8; 32], Fill>,
+    pub product_accounts: ProductAccounts,
+    pub side_products: IterableMap<(u8, u32), SideProduct>,
+    pub options: LookupMap<u64, StoredBet>,
+    pub pool_balances: LookupMap<(u8, [u8; 32], u32), i128>,
+    pub claim_limits: PreLogxRemovalClaimLimits,
+    pub reward_rate_x18: i128,
+    pub trusted_depositors: Vec<AccountId>,
+    pub held: LookupMap<(AccountId, u64, u32), i128>,
+    pub unclaimed: LookupMap<u32, u128>,
+}
+
 #[near]
 impl NearStocks {
     #[init]
@@ -290,8 +338,6 @@ impl NearStocks {
             side_products: IterableMap::new(Key::SideProducts),
             options: LookupMap::new(Key::Options),
             pool_balances: LookupMap::new(Key::PoolBalances),
-            claim_limits: ClaimLimits::default(),
-            reward_rate_x18: 0,
             trusted_depositors: vec![],
             held: LookupMap::new(Key::HeldDeposits),
             unclaimed: LookupMap::new(Key::Unclaimed),
@@ -300,10 +346,54 @@ impl NearStocks {
 
     /// Upgrade hook: the new code is deployed by `upgrade`, then this re-reads the old state.
     /// State layout changes must be handled here before the new version ships.
+    ///
+    /// 2026-09-27: dropped `claim_limits`/`reward_rate_x18` (LogX/staking/rewards removed
+    /// entirely, Development.md §16.11) — Borsh is positional, so removing fields from the middle
+    /// of the struct means the old bytes no longer decode directly into `Self`. Reads the old
+    /// layout explicitly (`PreLogxRemoval`, below) and carries every other field across unchanged,
+    /// preserving all existing subaccounts, balances, positions, orders and prices instead of
+    /// losing them to a fresh redeploy. One-time: safe to simplify back to a plain
+    /// `env::state_read()` (and delete `PreLogxRemoval`/`PreLogxRemovalClaimLimits`) once this has
+    /// actually run once against the deployed contract.
     #[private]
     #[init(ignore_state)]
     pub fn migrate() -> Self {
-        env::state_read().unwrap_or_else(|| env::panic_str("no state"))
+        let old: PreLogxRemoval = env::state_read().unwrap_or_else(|| env::panic_str("no state"));
+        Self {
+            owner: old.owner,
+            guardian: old.guardian,
+            sequencer: old.sequencer,
+            chain_id: old.chain_id,
+            broker_id: old.broker_id,
+            n_submissions: old.n_submissions,
+            paused: old.paused,
+            migrated: old.migrated,
+            fee_table: old.fee_table,
+            amm_subaccount: old.amm_subaccount,
+            insurance_subaccount: old.insurance_subaccount,
+            fee_subaccount: old.fee_subaccount,
+            price_max_age_sec: old.price_max_age_sec,
+            max_session_ttl_ms: old.max_session_ttl_ms,
+            min_new_deposit_x18: old.min_new_deposit_x18,
+            max_order_ttl_ms: old.max_order_ttl_ms,
+            spot_order: old.spot_order,
+            collateral_order: old.collateral_order,
+            spots: old.spots,
+            perps: old.perps,
+            token_to_spot: old.token_to_spot,
+            subaccounts: old.subaccounts,
+            owners: old.owners,
+            session_keys: old.session_keys,
+            nonces: old.nonces,
+            filled: old.filled,
+            product_accounts: old.product_accounts,
+            side_products: old.side_products,
+            options: old.options,
+            pool_balances: old.pool_balances,
+            trusted_depositors: old.trusted_depositors,
+            held: old.held,
+            unclaimed: old.unclaimed,
+        }
     }
 
     // ------------------------------------------------------------------ batch entry point
@@ -339,13 +429,6 @@ impl NearStocks {
                 tx::SETTLE_USER_PNL => self.tx_settle_pnl(decode(payload), &mut log),
                 tx::SOCIALISE_SUBACCOUNT => self.tx_socialise(decode(payload), &mut log),
                 tx::SET_NONCE => self.tx_set_nonce(decode(payload)),
-                // LogX leaves through the same NEAR withdrawal as collateral, with product 0
-                tx::WITHDRAW_LOGX => self.tx_withdraw(decode(payload), &sigs[i], tx_idx),
-                tx::CLAIM_REWARDS => self.tx_claim_rewards(decode(payload), &sigs[i]),
-                tx::STAKE_LOGX => self.tx_stake(true, decode(payload), &sigs[i]),
-                tx::UNSTAKE_LOGX => self.tx_stake(false, decode(payload), &sigs[i]),
-                tx::CLAIM_LOGX => self.tx_claim_logx(decode(payload), &sigs[i]),
-                tx::REWARD_RATE_TICK => self.tx_reward_rate_tick(decode(payload)),
                 tx::PLACE_OPTIONS_BET => self.tx_place_option(decode(payload), &sigs[i]),
                 tx::CLOSE_OPTIONS_BET => self.tx_close_option(decode(payload), &mut log),
                 tx::PRE_MARKET_ORDER_REQUEST => self.tx_pool_trade(side::PRE_MARKET, decode(payload), &sigs[i]),
@@ -407,7 +490,7 @@ impl NearStocks {
 
     /// NEP-141 receiver (§7.1). msg is "" (credit the sender's subaccount 1) or JSON
     /// `{"account_id"?: "...", "subaccount_number"?: n, "source"?: "direct"|"1click"}`, or (owner only)
-    /// `{"system": "amm"|"insurance"|"rewards"}` to fund a system subaccount (rewards: LogX only).
+    /// `{"system": "amm"|"insurance"}` to fund a system subaccount.
     /// Returning the full amount refunds it (paused, unknown, or too small for a new subaccount).
     pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> PromiseOrValue<U128> {
         let token = env::predecessor_account_id();
@@ -431,8 +514,6 @@ impl NearStocks {
             let sub_id = match target.as_str() {
                 "amm" => self.amm_subaccount,
                 "insurance" => self.insurance_subaccount,
-                "rewards" if pid == LOGX_PRODUCT_ID => LOGX_REWARDS_SUBACCOUNT,
-                "rewards" => env::panic_str("the rewards pool holds LogX only"),
                 _ => env::panic_str("unknown system subaccount"),
             };
             let spot = self.spots.get(&pid).unwrap_or_else(|| env::panic_str("unknown spot")).clone();
@@ -720,14 +801,6 @@ impl NearStocks {
         emit("pool_supply", json!({ "kind": kind, "product_id": product_id, "subaccount": hex(&x), "amount_x18": s(amount_x18.0) }));
     }
 
-    pub fn set_claim_limits(&mut self, limits: ClaimLimits) {
-        self.assert_owner();
-        if limits.max_logx_claim_x18.0 < 0 || limits.max_reward_claim_x18.0 < 0 {
-            env::panic_str("invalid claim limits");
-        }
-        self.claim_limits = limits;
-    }
-
     /// UPDATE_FEE_RATES (9) as an owner method (D-1).
     pub fn set_fee_table(&mut self, default_factor: I128, per_broker: Vec<(u64, I128)>) {
         self.assert_owner();
@@ -929,7 +1002,7 @@ impl NearStocks {
                 "per_broker": self.fee_table.per_broker.iter().map(|(b, f)| json!([b, s(*f)])).collect::<Vec<_>>() },
             "amm_subaccount": hex(&self.amm_subaccount),
             "insurance_subaccount": hex(&self.insurance_subaccount),
-            "fee_subaccount": hex(&self.fee_subaccount), "logx_rewards_subaccount": hex(&LOGX_REWARDS_SUBACCOUNT),
+            "fee_subaccount": hex(&self.fee_subaccount),
             "price_max_age_sec": self.price_max_age_sec, "max_session_ttl_ms": self.max_session_ttl_ms,
             "min_new_deposit_x18": s(self.min_new_deposit_x18), "max_order_ttl_ms": self.max_order_ttl_ms,
             "spot_order": self.spot_order, "collateral_order": self.collateral_order,
@@ -1002,10 +1075,6 @@ impl NearStocks {
 
     pub fn get_side_products(&self) -> Value {
         json!(self.side_products.iter().map(|((k, p), c)| json!({ "kind": k, "product_id": p, "config": c })).collect::<Vec<_>>())
-    }
-
-    pub fn get_reward_rate(&self) -> I128 {
-        I128(self.reward_rate_x18)
     }
 
     pub fn get_nonce(&self, subaccount: String) -> u64 {
@@ -1478,7 +1547,7 @@ impl NearStocks {
 
         let amount = i128::try_from(w.amount).unwrap_or_else(|_| env::panic_str("amount too large"));
         let mut sub = self.load(&w.subaccount);
-        // collateral: GetWithdrawableBalance; other tokens (LogX): the balance itself
+        // collateral: GetWithdrawableBalance; any other non-collateral spot token: the balance itself
         let allowed = if self.collateral_order.contains(&pid) {
             let m = self.market(&[]);
             risk::withdrawable_x18(&sub, &m, &self.collateral_order, pid)

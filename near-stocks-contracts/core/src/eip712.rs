@@ -176,12 +176,6 @@ pub const PRE_MARKET_ORDER_TYPE: &[u8] =
     b"PlacePreMarketOrderRequest(bytes32 subAccountId,uint32 productId,int128 amount,bool isBuy,uint128 nonce,address sessionKey,uint256 chainId)";
 pub const SYN_SPOT_ORDER_TYPE: &[u8] =
     b"PlaceSyntheticSpotOrderRequest(bytes32 subAccountId,uint32 productId,int128 amount,bool isBuy,uint128 nonce,address sessionKey,uint256 chainId)";
-pub const STAKE_TYPE: &[u8] = b"StakeLogXRequest(bytes32 subAccountId,uint32 productId,int128 tokenAmount,address stakerContract,address sessionKey,uint128 nonce,uint256 chainId)";
-pub const UNSTAKE_TYPE: &[u8] =
-    b"UnstakeLogXRequest(bytes32 subAccountId,uint32 productId,int128 amount,address stakerContract,address sessionKey,uint128 nonce,uint256 chainId)";
-pub const CLAIM_REWARDS_TYPE: &[u8] =
-    b"ClaimRewards(bytes32 subAccountId,address sessionKey,address stakerContract,uint32 productId,uint128 nonce,uint256 chainId)";
-pub const CLAIM_LOGX_TYPE: &[u8] = b"ClaimLogX(bytes32 subAccountId,int128 tokenAmount,address sessionKey,uint128 nonce,uint256 chainId)";
 
 /// Signed by the user's session key: UserOptionBet (tx 24).
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
@@ -238,78 +232,5 @@ pub fn pool_order_hash(type_string: &[u8], o: &PoolOrder, chain_id: u64) -> [u8;
             Address(&o.session_key),
             Uint(chain_id as u128),
         ],
-    )
-}
-
-/// Signed by the user: StakeLogXRequest (15) or UnstakeLogXRequest (16).
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[borsh(crate = "near_sdk::borsh")]
-pub struct StakeRequest {
-    pub subaccount: [u8; 32],
-    pub product_id: u32,
-    pub amount: i128,
-    /// kept for signature compatibility; staking is a ledger move inside this contract (D-9)
-    pub staker_contract: [u8; 20],
-    pub session_key: [u8; 20],
-    pub nonce: u128,
-}
-
-pub fn stake_hash(type_string: &[u8], s: &StakeRequest, chain_id: u64) -> [u8; 32] {
-    use Field::*;
-    struct_hash(
-        type_string,
-        &[
-            Bytes32(&s.subaccount),
-            Uint(s.product_id as u128),
-            Int(s.amount),
-            Address(&s.staker_contract),
-            Address(&s.session_key),
-            Uint(s.nonce),
-            Uint(chain_id as u128),
-        ],
-    )
-}
-
-/// Signed by the user: ClaimRewards (14). The amount is computed off-chain (D-6).
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[borsh(crate = "near_sdk::borsh")]
-pub struct ClaimRewards {
-    pub subaccount: [u8; 32],
-    pub session_key: [u8; 20],
-    pub staker_contract: [u8; 20],
-    pub product_id: u32,
-    pub nonce: u128,
-}
-
-pub fn claim_rewards_hash(c: &ClaimRewards, chain_id: u64) -> [u8; 32] {
-    use Field::*;
-    struct_hash(
-        CLAIM_REWARDS_TYPE,
-        &[
-            Bytes32(&c.subaccount),
-            Address(&c.session_key),
-            Address(&c.staker_contract),
-            Uint(c.product_id as u128),
-            Uint(c.nonce),
-            Uint(chain_id as u128),
-        ],
-    )
-}
-
-/// Signed by the user: ClaimLogX (18), the airdrop allocation the backend verified.
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[borsh(crate = "near_sdk::borsh")]
-pub struct ClaimLogX {
-    pub subaccount: [u8; 32],
-    pub token_amount: i128,
-    pub session_key: [u8; 20],
-    pub nonce: u128,
-}
-
-pub fn claim_logx_hash(c: &ClaimLogX, chain_id: u64) -> [u8; 32] {
-    use Field::*;
-    struct_hash(
-        CLAIM_LOGX_TYPE,
-        &[Bytes32(&c.subaccount), Int(c.token_amount), Address(&c.session_key), Uint(c.nonce), Uint(chain_id as u128)],
     )
 }

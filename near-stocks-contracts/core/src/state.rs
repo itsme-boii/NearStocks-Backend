@@ -100,7 +100,7 @@ pub struct Price {
 #[near(serializers = [borsh])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpotProduct {
-    /// NEP-141 token that backs this spot; None for ledger-only spots (for example LogX before Phase 4)
+    /// NEP-141 token that backs this spot; None for a ledger-only spot with no real token behind it
     pub token: Option<AccountId>,
     pub decimals: u8,
     /// PRODUCT_MARKET_WEIGHTS != 0: counts toward equity and can settle negative pnl
@@ -160,15 +160,6 @@ pub mod pause {
     pub const ALL: u8 = 15;
 }
 
-/// LogX and staked LogX spot products (constants.utils.go LOGX / ST_LOGX).
-pub const LOGX_PRODUCT_ID: u32 = 0;
-/// The LogX rewards pool (LOGX_REWARDS_SUBACCOUNT_ID in constants.utils.go): reward and airdrop
-/// claims are paid from it, so every claimed LogX is backed by tokens the DAO deposited
-/// (ft_transfer_call msg {"system":"rewards"}). Broker 1, address 0x...0010, number 1.
-pub const LOGX_REWARDS_SUBACCOUNT: [u8; 32] =
-    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 1];
-pub const STAKED_LOGX_PRODUCT_ID: u32 = 2;
-
 /// Side products (behavior-spec §3.9, §3.10) share one config table keyed by (kind, product id).
 pub mod side {
     pub const OPTIONS: u8 = 0;
@@ -212,12 +203,4 @@ pub struct StoredBet {
     pub entry_price_x18: i128,
     pub payout_pct: u32,
     pub fee_pct: u32,
-}
-
-/// D-5 / D-6: per-transaction caps on sequencer-computed LogX credits.
-#[near(serializers = [borsh, json])]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ClaimLimits {
-    pub max_logx_claim_x18: near_sdk::json_types::I128,
-    pub max_reward_claim_x18: near_sdk::json_types::I128,
 }

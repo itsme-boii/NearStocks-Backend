@@ -218,10 +218,26 @@ func (nc *NearController) Login(ctx *gin.Context) {
 	// registered on-chain (register_session_key, §6.3). Check before issuing credentials, so the
 	// frontend registers first instead of the user's first trade being refused on-chain.
 	if contractUtils.NearSettlement() {
-		raw, err := c.RPC.CallView(ctx, c.ContractAccount, "session_key_expiry", map[string]any{"subaccount": strings.ToLower(subHex), "session_key": strings.ToLower(body.SessionKey)})
+		// CallView reads at "final" finality, which on NEAR trails the block the frontend's
+		// register_session_key just landed in by roughly one to two blocks (~1-3s) — more under
+		// load on the public testnet RPC, where each CallView round-trip alone measured ~0.7-0.8s.
+		// Retry for several seconds before concluding the key was never registered, or a fresh
+		// sign-in racing that lag (observed taking ~4.8s total before the count was raised here)
+		// gets wrongly bounced back to "register first".
 		var onChain uint64
-		if err == nil {
-			err = json.Unmarshal(raw, &onChain)
+		var err error
+		for attempt := 0; attempt < 12; attempt++ {
+			if attempt > 0 {
+				time.Sleep(500 * time.Millisecond)
+			}
+			var raw []byte
+			raw, err = c.RPC.CallView(ctx, c.ContractAccount, "session_key_expiry", map[string]any{"subaccount": strings.ToLower(subHex), "session_key": strings.ToLower(body.SessionKey)})
+			if err == nil {
+				err = json.Unmarshal(raw, &onChain)
+			}
+			if err != nil || onChain > uint64(time.Now().UnixMilli()) {
+				break
+			}
 		}
 		if err != nil {
 			xlog.Errorf("NEAR login session_key_expiry: %v", err)

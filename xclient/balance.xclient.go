@@ -186,14 +186,14 @@ func (bcl *BalanceClient) GetBuyingPower(subaccountID string) (string, error) {
 	}
 
 	var result struct {
-		TotalBuyingPower *big.Int `json:"totalBuyingPower"`
+		TotalBuyingPower string `json:"totalBuyingPower"`
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return "0", err
 	}
-	return result.TotalBuyingPower.String(), nil
+	return result.TotalBuyingPower, nil
 
 }
 

@@ -186,6 +186,30 @@ impl Chain {
         drop(c);
         Chain
     }
+
+    /// Installs whatever `f` builds as-if it were already-deployed contract storage, bypassing
+    /// `new()` entirely — for testing state migrations (`migrate()`), where the point is that the
+    /// *old* on-chain bytes, not a fresh `NearStocks`, are what's already there. `f` runs only
+    /// after the mock blockchain is installed, same as `deploy` above: `store::` collections
+    /// (`IterableMap`/`LookupMap`) issue real storage host calls as soon as you touch them, so
+    /// building `f`'s value beforehand (with nowhere to write to yet) panics.
+    pub fn deploy_state<T: near_sdk::borsh::BorshSerialize>(f: impl FnOnce() -> T) -> Chain {
+        install(context(owner(), NearToken::from_yoctonear(0), NOW_MS), HashMap::new(), vec![]);
+        let old = f();
+        near_sdk::env::state_write(&old);
+        drop(old);
+        Chain
+    }
+
+    /// Runs the code-upgrade hook (`migrate()`) against whatever's currently in storage, exactly
+    /// as a real `upgrade()` would, and persists the result.
+    pub fn run_migrate(&mut self) {
+        let before = take_storage();
+        install(context(contract_id(), NearToken::from_yoctonear(0), NOW_MS), before, vec![]);
+        let c = NearStocks::migrate();
+        near_sdk::env::state_write(&c);
+        drop(c);
+    }
 }
 
 pub fn new_contract() -> NearStocks {

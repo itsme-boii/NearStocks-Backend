@@ -126,11 +126,15 @@ func (ob *Orderbook) placeOrder(order *db.OrderTable) (remTakerOrder *types.Take
 
 	// Get opposite price quantums
 	cutils.LogByParty(order.Party, "%v - fetching price quantums", order.ID)
-	if order.IsLimitOrder() {
+	// A market order with a real (nonzero) price is the client's slippage-bounded worst price
+	// (order.controller.go): match it exactly like a limit order — bounded to price levels at
+	// least as good as that price — instead of walking the book with no price bound at all.
+	hasBoundedPrice := order.IsLimitOrder() || (order.IsMarketOrder() && order.Pricex18.Val.Sign() > 0)
+	if hasBoundedPrice {
 		oppPriceQuantums, err = ob.GetMatchingPriceQuantums(oppParty, oppSide, order.Pricex18.Val)
 		if err != nil {
 			if err == redis.Nil {
-				xlog.Infof("%v - No matching price quantums for limit order", order.ID)
+				xlog.Infof("%v - No matching price quantums for order", order.ID)
 			} else if err != nil {
 				xlog.Errorf("%v - failed to fetch matching price quantums from redis", order.ID)
 			}

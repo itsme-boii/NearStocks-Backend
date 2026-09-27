@@ -77,14 +77,6 @@ fn every_go_payload_decodes_and_reencodes_identically() {
             quote_delta: i(&f["quoteDelta"]),
             fees: i(&f["fees"]),
         };
-        let stake = || StakeRequest {
-            subaccount: arr(&f["subaccount"]),
-            product_id: f["productId"].as_u64().unwrap() as u32,
-            amount: i(&f["amount"]),
-            staker_contract: arr(&f["stakerContract"]),
-            session_key: arr(&f["sessionKey"]),
-            nonce: u(&f["nonce"]),
-        };
         match name {
             "perp_tick" | "perp_tick_empty" => roundtrip(
                 name,
@@ -116,7 +108,11 @@ fn every_go_payload_decodes_and_reencodes_identically() {
                 },
             ),
             "withdraw_collateral" => roundtrip(name, &b, tx::WITHDRAW_COLLATERAL, withdraw()),
-            "withdraw_logx" => roundtrip(name, &b, tx::WITHDRAW_LOGX, withdraw()),
+            // This contract carries no LogX token, staking or rewards pool: it doesn't implement
+            // these transaction types at all (Go's payloads.json still generates a reference
+            // encoding for them, since the byte format itself is unaffected). Not roundtripped or
+            // counted in `seen` below.
+            "withdraw_logx" | "stake_logx" | "unstake_logx" | "claim_rewards" | "claim_logx" | "reward_rate_tick" => continue,
             "settle_user_pnl" => roundtrip(
                 name,
                 &b,
@@ -162,43 +158,13 @@ fn every_go_payload_decodes_and_reencodes_identically() {
             ),
             "pre_market_order" => roundtrip(name, &b, tx::PRE_MARKET_ORDER_REQUEST, pool()),
             "synthetic_spot_order" => roundtrip(name, &b, tx::SYN_SPOT_ORDER_REQUEST, pool()),
-            "stake_logx" => roundtrip(name, &b, tx::STAKE_LOGX, stake()),
-            "unstake_logx" => roundtrip(name, &b, tx::UNSTAKE_LOGX, stake()),
-            "claim_rewards" => roundtrip(
-                name,
-                &b,
-                tx::CLAIM_REWARDS,
-                ClaimRewardsTx {
-                    claim: ClaimRewards {
-                        subaccount: arr(&f["subaccount"]),
-                        session_key: arr(&f["sessionKey"]),
-                        staker_contract: arr(&f["stakerContract"]),
-                        product_id: f["productId"].as_u64().unwrap() as u32,
-                        nonce: u(&f["nonce"]),
-                    },
-                    amount_x18: i(&f["amountX18"]),
-                },
-            ),
-            "claim_logx" => roundtrip(
-                name,
-                &b,
-                tx::CLAIM_LOGX,
-                ClaimLogX {
-                    subaccount: arr(&f["subaccount"]),
-                    token_amount: i(&f["tokenAmount"]),
-                    session_key: arr(&f["sessionKey"]),
-                    nonce: u(&f["nonce"]),
-                },
-            ),
-            "reward_rate_tick" => {
-                roundtrip(name, &b, tx::REWARD_RATE_TICK, RewardRateTick { cumulative_rate_x18: i(&f["cumulativeRateX18"]) })
-            }
             other => panic!("unknown case {other}"),
         }
         assert_eq!(ty, b[0]);
         seen += 1;
     }
-    assert_eq!(seen, 18);
+    // 18 cases in payloads.json, minus the 6 LogX/rewards ones this contract doesn't implement.
+    assert_eq!(seen, 12);
 
     // submit_transactions arguments: borsh((u64, Vec<Vec<u8>>, Vec<Vec<u8>>, Vec<Vec<u8>>))
     let s = &v["submit"];
@@ -214,8 +180,14 @@ fn every_go_request_signature_verifies_in_the_contract() {
     let sep = eip712::domain_separator(chain, &eip712::verifying_contract(v["contractAccount"].as_str().unwrap()));
     let key: [u8; 20] = arr(&v["sessionKey"]);
     let sub: [u8; 32] = arr(&v["subAccountId"]);
+    let mut seen = 0;
     for r in v["requests"].as_array().unwrap() {
         let p = r["primaryType"].as_str().unwrap();
+        // This contract carries no LogX token, staking or rewards pool: it doesn't implement these
+        // request types at all, so there's no hash to recompute or verify here.
+        if matches!(p, "StakeLogXRequest" | "UnstakeLogXRequest" | "ClaimRewards" | "ClaimLogX") {
+            continue;
+        }
         let hash = match p {
             "UserOptionBet" => option_bet_hash(
                 &OptionBet {
@@ -243,41 +215,14 @@ fn every_go_request_signature_verifies_in_the_contract() {
                     chain,
                 )
             }
-            "StakeLogXRequest" | "UnstakeLogXRequest" => {
-                let ty = if p == "StakeLogXRequest" { STAKE_TYPE } else { UNSTAKE_TYPE };
-                stake_hash(
-                    ty,
-                    &StakeRequest {
-                        subaccount: sub,
-                        product_id: i(&r["productId"]) as u32,
-                        amount: i(&r["amount"]),
-                        staker_contract: arr(&r["stakerContract"]),
-                        session_key: key,
-                        nonce: u(&r["nonce"]),
-                    },
-                    chain,
-                )
-            }
-            "ClaimRewards" => claim_rewards_hash(
-                &ClaimRewards {
-                    subaccount: sub,
-                    session_key: key,
-                    staker_contract: arr(&r["stakerContract"]),
-                    product_id: i(&r["productId"]) as u32,
-                    nonce: u(&r["nonce"]),
-                },
-                chain,
-            ),
-            "ClaimLogX" => claim_logx_hash(
-                &ClaimLogX { subaccount: sub, token_amount: i(&r["amount"]), session_key: key, nonce: u(&r["nonce"]) },
-                chain,
-            ),
             other => panic!("unknown type {other}"),
         };
         let digest = typed_digest(&sep, &hash);
         assert_eq!(format!("0x{}", hex::encode(digest)), r["digest"].as_str().unwrap(), "{p}: digest");
         let signer = recover_signer(&digest, &unhex(r["signature"].as_str().unwrap())).unwrap();
         assert_eq!(signer, key, "{p}: signer");
+        seen += 1;
     }
-    assert_eq!(v["requests"].as_array().unwrap().len(), 7);
+    // 7 requests in requests.json, minus the 4 LogX/rewards ones this contract doesn't implement.
+    assert_eq!(seen, 3);
 }

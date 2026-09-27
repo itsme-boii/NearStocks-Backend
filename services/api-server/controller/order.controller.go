@@ -246,9 +246,11 @@ func (cor *CreateOrderRequest) ValidateAndGetOrder(subaccount *db.SubaccountTabl
 
 	if cor.OrderType == ctypes.ORDER_TYPE_LIMIT && bigIntPricex18.Sign() == 0 {
 		return newOrder, http.StatusBadRequest, fmt.Errorf("price cannot be 0 for limit order")
-	} else if cor.OrderType == ctypes.ORDER_TYPE_MARKET && bigIntPricex18.Sign() != 0 {
-		return newOrder, http.StatusBadRequest, fmt.Errorf("price should be 0 for market order")
 	}
+	// A market order's price, when set, is the client's worst-acceptable (slippage-bounded) price:
+	// the engine (placeOrder.engine.go) matches only within it instead of walking the book unbounded,
+	// and it's also what gets signed on-chain, so the contract's own price-crossing check applies to
+	// market orders too. 0 keeps the legacy unbounded-fill behavior for any other caller.
 
 	// For non reduce only orders amount should be greater than minimum amount
 	if bigIntAmountx18.Cmp(market.MinAmountx18) == -1 && (cor.IsReduce == nil || !*cor.IsReduce) {

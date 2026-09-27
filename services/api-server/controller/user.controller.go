@@ -44,6 +44,7 @@ func RegisterUserController(r *gin.RouterGroup) {
 	rg.GET("/orders", middleware.RequireAuth, userController.GetOrders)
 	rg.GET("/withdrawableTokenBalance", middleware.RequireAuth, userController.GetWithdrawableToken)
 	rg.GET("/buyingPower", middleware.RequireAuth, userController.GetBuyingPower)
+	rg.GET("/availableMargin", middleware.RequireAuth, userController.GetAvailableMargin)
 	rg.GET("/deposits", middleware.RequireAuth, userController.GetDeposits)
 	rg.GET("/withdrawals", middleware.RequireAuth, userController.GetWithdrawals)
 	rg.GET("/getLogxTokenData", middleware.RequireAuth, userController.GetTokenUserData)
@@ -195,12 +196,39 @@ func (uc *UserController) GetBuyingPower(ctx *gin.Context) {
 	if err != nil {
 		xlog.Errorf("UC - Error occurred while fetching buying power from BC. Error: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "An unexpected error occurred while processing your request. Sorry for the inconvience."})
+		return
 	}
 
 	response := gin.H{
 		"totalBuyingPower": buyingPower,
 	}
 	ctx.JSON(http.StatusOK, response)
+}
+
+// GetAvailableMargin returns the same margin-aware figure order placement is actually gated on
+// (contractUtils' health check via balance-server's GetAvailableMarginV2/SafetyMarginx18), unlike
+// `buyingPower` above which is only the raw spot value and never accounts for margin already used
+// by open perp positions.
+func (uc *UserController) GetAvailableMargin(ctx *gin.Context) {
+	currentSubaccount, err := getCurrentSubaccount(ctx)
+	if err != nil {
+		cutils.ApiAbort(ctx, http.StatusInternalServerError, "subaccount not found for the api key")
+		return
+	}
+	subaccountID, err := cutils.SubaccountIdToHex(currentSubaccount.ID)
+	if err != nil {
+		cutils.ApiAbort(ctx, http.StatusInternalServerError, "")
+		return
+	}
+
+	availableMargin, err := uc.balanceClient.GetAvailableMargin(subaccountID)
+	if err != nil {
+		xlog.Errorf("UC - Error occurred while fetching available margin from BC. Error: %v", err)
+		cutils.ApiAbort(ctx, http.StatusInternalServerError, "An unexpected error occurred while processing your request. Sorry for the inconvience.")
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"availableMargin": availableMargin.String()})
 }
 
 func (uc *UserController) GetSubaccountData(ctx *gin.Context) {
@@ -407,6 +435,7 @@ func (uc *UserController) GetPositions(ctx *gin.Context) {
 		}
 
 		tradeHistoryResponses = append(tradeHistoryResponses, gin.H{
+			"orderId":       trade.OrderId,                 // Links this fill back to its order, for average-fill-price rollups
 			"productId":     trade.MarketId,               // Assuming MarketId maps to ProductID in your original structure
 			"type":          trade.Side,                   // Convert Order side to string, assuming `trade.Side` has a String() method
 			"amountx18":     trade.Amountx18.Val.String(), // Convert Amount in x18 format to string

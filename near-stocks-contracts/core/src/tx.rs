@@ -10,7 +10,9 @@ pub const MATCH_ORDERS: u8 = 5;
 pub const SETTLE_USER_PNL: u8 = 19;
 pub const SOCIALISE_SUBACCOUNT: u8 = 20;
 pub const SET_NONCE: u8 = 21;
-// Phase 4: 13-16, 18, 22, 24-27. Dropped or reserved: 2, 4, 6-12, 17, 23.
+// Phase 4: 24-27. Dropped or reserved: 2, 4, 6-18, 22, 23.
+// 13-16, 18, 22 (LogX withdraw/claim/stake/unstake/rewards) were never listed on this deployment
+// and are deliberately not implemented here — this contract carries no LogX/reward pool at all.
 
 /// PERPTICK (0). Funding and prices are separate lists so the batcher can send price-only ticks
 /// (empty `rates`) as often as it likes. Rates are keyed by product id (H-2).
@@ -73,18 +75,12 @@ pub struct SetNonce {
 
 // WITHDRAW_COLLATERAL (3) uses eip712::NearWithdraw as its payload; sigs[i] = session key signature.
 
-pub const WITHDRAW_LOGX: u8 = 13;
-pub const CLAIM_REWARDS: u8 = 14;
-pub const STAKE_LOGX: u8 = 15;
-pub const UNSTAKE_LOGX: u8 = 16;
-pub const CLAIM_LOGX: u8 = 18;
-pub const REWARD_RATE_TICK: u8 = 22;
 pub const PLACE_OPTIONS_BET: u8 = 24;
 pub const CLOSE_OPTIONS_BET: u8 = 25;
 pub const PRE_MARKET_ORDER_REQUEST: u8 = 26;
 pub const SYN_SPOT_ORDER_REQUEST: u8 = 27;
 
-use crate::eip712::{ClaimLogX, ClaimRewards, OptionBet, PoolOrder, StakeRequest};
+use crate::eip712::{OptionBet, PoolOrder};
 
 /// PLACE_OPTIONS_BET (24): the user-signed bet plus what the backend fixed at placement.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
@@ -113,25 +109,4 @@ pub struct PoolTrade {
     pub order: PoolOrder,
     pub quote_delta: i128,
     pub fees: i128,
-}
-
-/// STAKE_LOGX (15) / UNSTAKE_LOGX (16) carry eip712::StakeRequest directly.
-pub type Stake = StakeRequest;
-
-/// CLAIM_REWARDS (14): the user-signed claim plus the backend-computed claimable amount.
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[borsh(crate = "near_sdk::borsh")]
-pub struct ClaimRewardsTx {
-    pub claim: ClaimRewards,
-    pub amount_x18: i128,
-}
-
-/// CLAIM_LOGX (18) carries eip712::ClaimLogX directly.
-pub type ClaimLogXTx = ClaimLogX;
-
-/// REWARD_RATE_TICK (22): the staking reward index the backend's earning cron computed.
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[borsh(crate = "near_sdk::borsh")]
-pub struct RewardRateTick {
-    pub cumulative_rate_x18: i128,
 }

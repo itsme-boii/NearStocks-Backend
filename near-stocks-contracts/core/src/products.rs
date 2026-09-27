@@ -1,8 +1,8 @@
-//! Options, pre-market, synthetic spot, LogX staking and claims (behavior-spec §3.9, §3.10; D-5,
-//! D-6, D-9). Ported from options.controller.go, pre-markets.controller.go,
-//! synthetic-spots.controller.go and token.controller.go. Every user action is signed by a session
-//! key under the near-stocks domain and consumes the subaccount's sequential nonce.
-use crate::events::{self, emit, hex};
+//! Options, pre-market and synthetic spot (behavior-spec §3.9, §3.10; D-5). Ported from
+//! options.controller.go, pre-markets.controller.go and synthetic-spots.controller.go. Every user
+//! action is signed by a session key under the near-stocks domain and consumes the subaccount's
+//! sequential nonce. This contract carries no LogX token, staking or rewards pool.
+use crate::events::{self, hex};
 use crate::fixed::*;
 use crate::state::*;
 use crate::{eip712, risk, tx, NearStocks};
@@ -183,67 +183,6 @@ impl NearStocks {
         }
     }
 
-    // ------------------------------------------------------------------ LogX staking and claims (D-9)
-
-    /// STAKE_LOGX (15): LogX -> stLogX. UNSTAKE_LOGX (16): stLogX -> LogX. Same ledger move as
-    /// token.controller.go; the unstake cooldown is enforced by the backend (behavior-spec R-7).
-    pub(crate) fn tx_stake(&mut self, stake: bool, s: tx::Stake, sig: &[u8]) {
-        let type_string = if stake { eip712::STAKE_TYPE } else { eip712::UNSTAKE_TYPE };
-        if s.amount <= 0 {
-            env::panic_str("amount must be positive");
-        }
-        self.signed(&s.subaccount, &s.session_key, eip712::stake_hash(type_string, &s, self.chain_id), sig, s.nonce);
-        let (from, to) = if stake { (LOGX_PRODUCT_ID, STAKED_LOGX_PRODUCT_ID) } else { (STAKED_LOGX_PRODUCT_ID, LOGX_PRODUCT_ID) };
-        let mut sub = self.load(&s.subaccount);
-        if sub.spot(from) < s.amount {
-            env::panic_str(&format!("insufficient token balance for {}", hex(&s.subaccount)));
-        }
-        sub.add_spot(from, checked_neg(s.amount));
-        sub.add_spot(to, s.amount);
-        self.save(s.subaccount, sub);
-    }
-
-    /// CLAIM_REWARDS (14): credits the backend-computed claimable LogX (D-6), capped per claim.
-    pub(crate) fn tx_claim_rewards(&mut self, c: tx::ClaimRewardsTx, sig: &[u8]) {
-        let cap = self.claim_limits.max_reward_claim_x18.0;
-        if c.amount_x18 <= 0 || c.amount_x18 > cap {
-            env::panic_str("reward claim outside limits");
-        }
-        let r = &c.claim;
-        self.signed(&r.subaccount, &r.session_key, eip712::claim_rewards_hash(r, self.chain_id), sig, r.nonce);
-        self.pay_from_rewards_pool(&r.subaccount, c.amount_x18);
-    }
-
-    /// Claims move LogX out of the DAO-funded rewards pool: a claim never creates LogX the contract
-    /// does not hold, so LogX withdrawals stay fully backed.
-    fn pay_from_rewards_pool(&mut self, to: &[u8; 32], amount: i128) {
-        let mut pool = self.load(&LOGX_REWARDS_SUBACCOUNT);
-        if pool.spot(LOGX_PRODUCT_ID) < amount {
-            env::panic_str("LogX rewards pool exhausted: the DAO must top it up");
-        }
-        pool.add_spot(LOGX_PRODUCT_ID, checked_neg(amount));
-        self.save(LOGX_REWARDS_SUBACCOUNT, pool);
-        self.credit_quote_like(to, LOGX_PRODUCT_ID, amount);
-    }
-
-    /// CLAIM_LOGX (18): the airdrop amount the user signed and the backend verified, capped.
-    pub(crate) fn tx_claim_logx(&mut self, c: tx::ClaimLogXTx, sig: &[u8]) {
-        let cap = self.claim_limits.max_logx_claim_x18.0;
-        if c.token_amount <= 0 || c.token_amount > cap {
-            env::panic_str("LogX claim outside limits");
-        }
-        self.signed(&c.subaccount, &c.session_key, eip712::claim_logx_hash(&c, self.chain_id), sig, c.nonce);
-        self.pay_from_rewards_pool(&c.subaccount, c.token_amount);
-    }
-
-    /// REWARD_RATE_TICK (22): recorded for audit; rewards themselves are computed off-chain (D-6).
-    pub(crate) fn tx_reward_rate_tick(&mut self, t: tx::RewardRateTick) {
-        if t.cumulative_rate_x18 < self.reward_rate_x18 {
-            env::panic_str("reward rate cannot decrease");
-        }
-        self.reward_rate_x18 = t.cumulative_rate_x18;
-        emit("reward_rate", json!({ "cumulative_rate_x18": t.cumulative_rate_x18.to_string(), "time": env::block_timestamp_ms() }));
-    }
 
     pub(crate) fn options_view(&self, order_id: u64) -> near_sdk::serde_json::Value {
         match self.options.get(&order_id) {
