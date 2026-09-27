@@ -110,6 +110,7 @@ func listStocks(ctx context.Context, rpc *nearchain.Client) error {
 		return new(big.Int).Div(new(big.Int).Mul(big.NewInt(num), e18), big.NewInt(den)).String()
 	}
 	prices := map[string]*big.Int{}
+	var listed []stockPerp
 	for _, m := range usMarkets {
 		var p *big.Int
 		var err error
@@ -122,12 +123,19 @@ func listStocks(ctx context.Context, rpc *nearchain.Client) error {
 			p, err = oraclePrice(ctx, m.symbol)
 		}
 		if err != nil {
-			return fmt.Errorf("%s: %w", m.display, err)
+			// skip, don't abort the whole batch — e.g. SPY_CHAINLINK_FEED not set yet shouldn't
+			// block listing the markets that ARE ready.
+			fmt.Printf("  skipping %s: %v\n", m.display, err)
+			continue
 		}
 		prices[m.symbol] = p
+		listed = append(listed, m)
+	}
+	if len(listed) == 0 {
+		return fmt.Errorf("no markets had a working price source, nothing to list")
 	}
 	var actions []nearchain.Action
-	for _, m := range usMarkets {
+	for _, m := range listed {
 		actions = append(actions, callFn("upsert_perp", map[string]any{"product_id": m.id, "config": map[string]any{
 			"imf_x18": x(1, 10), "mmf_x18": x(1, 20), "liq_frac_x18": x(15, 1000), "price_x18": prices[m.symbol].String(),
 			"max_deviation_bps": 1000, "amm_max_position_x18": "0"}}, 20, nil))
@@ -137,11 +145,11 @@ func listStocks(ctx context.Context, rpc *nearchain.Client) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("listed %d stocks on-chain, tx %s\n", len(usMarkets), res.Transaction.Hash)
+	fmt.Printf("listed %d stocks on-chain, tx %s\n", len(listed), res.Transaction.Hash)
 
 	db.Init()
 	r := xredis.GetRedisClient()
-	for _, m := range usMarkets {
+	for _, m := range listed {
 		if (&db.MarketDB{}).GetById(uint(m.id)) == nil {
 			mkt := (&db.MarketDB{}).Create(&db.MarketTable{
 				BaseTable: db.BaseTable{ID: uint(m.id)}, Symbol: m.display + "-USD", Type: ctypes.PERPETUAL,

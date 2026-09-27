@@ -107,12 +107,20 @@ func Start(ctx context.Context) {
 			c.SendWebhookMessage(m)
 		}
 	}
+	apiKey := os.Getenv("NEARDATA_API_KEY")
 	x := &Indexer{
-		Source:      &Neardata{BaseURL: base, APIKey: os.Getenv("NEARDATA_API_KEY")},
+		Source:      &Neardata{BaseURL: base, APIKey: apiKey},
 		Checkpoint:  redisCheckpoint{key: "near-stocks:indexer:" + contractUtils.NearStocksAccount()},
 		Handler:     &Handler{Sink: dbSink{}, FeeSubaccount: contractUtils.TRADING_FEES_SUBACCOUNT_ID, Alert: alert},
 		Contract:    contractUtils.NearStocksAccount(),
 		StartHeight: start,
+	}
+	if apiKey == "" {
+		// no paid FastNEAR subscription: stay comfortably under the free tier's 180 req/min so
+		// catch-up after any downtime doesn't burst into constant 429s (verified live — the
+		// default Parallel=8 with no pacing exhausted the free limit from a cold start almost
+		// immediately, and never let the indexer see a single block).
+		x.MinFetchInterval = 500 * time.Millisecond // 2 block fetches/sec = 120/min, headroom for FinalHeight polls too
 	}
 	for ctx.Err() == nil {
 		n, err := x.Step(ctx)

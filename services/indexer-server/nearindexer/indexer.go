@@ -38,6 +38,13 @@ type Indexer struct {
 	// at a time (~0.6 s each) barely outpaces the chain, so catching up after downtime took hours.
 	// Blocks are still applied and checkpointed strictly in order.
 	Parallel int
+	// MinFetchInterval paces how often a new block fetch is dispatched, regardless of Parallel —
+	// without it, catch-up after any downtime bursts `Parallel` requests as fast as the network
+	// allows, which blows through neardata.xyz's free-tier 180 req/min limit almost immediately
+	// (verified live: constant 429s from a cold start ~1800 blocks behind). Zero means no pacing
+	// (fine with a paid FastNEAR subscription's higher limit); Start() sets a safe default when
+	// NEARDATA_API_KEY isn't set.
+	MinFetchInterval time.Duration
 }
 
 // Step processes finalized blocks after the checkpoint. A block is checkpointed only after all of
@@ -70,7 +77,14 @@ func (x *Indexer) Step(ctx context.Context) (int, error) {
 	done := 0
 	var window []chan fetched
 	src := x.Source // prefetches may outlive an early return: they must not read x
+	var lastDispatch time.Time
 	fetch := func(h uint64) chan fetched {
+		if x.MinFetchInterval > 0 {
+			if wait := x.MinFetchInterval - time.Since(lastDispatch); wait > 0 {
+				time.Sleep(wait)
+			}
+			lastDispatch = time.Now()
+		}
 		ch := make(chan fetched, 1) // buffered: an abandoned prefetch never blocks
 		go func() {
 			b, err := src.Block(ctx, h)

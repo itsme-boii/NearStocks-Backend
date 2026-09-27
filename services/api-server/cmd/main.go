@@ -49,7 +49,11 @@ func main() {
 	}
 
 	// Init server
-	server := api.NewApiServer(":8080")
+	port := "8080"
+	if p := os.Getenv("PORT"); p != "" {
+		port = p
+	}
+	server := api.NewApiServer(":" + port)
 	err = server.Run()
 
 	if err != nil {
